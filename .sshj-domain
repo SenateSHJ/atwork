@@ -11,7 +11,7 @@
 
 # ─── Supabase ────────────────────────────────────────────────────────
 SUPABASE_PROJECT_REF=krbveactwladtwiqrmts
-SUPABASE_ORG_ID=TBD_SSHJ_SUPABASE_ORG_ID
+SUPABASE_ORG_ID=iirlbdurnvfkvrfzffhq
 
 # ─── Vercel ──────────────────────────────────────────────────────────
 VERCEL_ORG_ID=team_YaPC3yG9kmyV1Q65UHdDlqMe

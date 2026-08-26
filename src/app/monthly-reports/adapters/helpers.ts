@@ -27,7 +27,7 @@ export function computePeriodStats(entities: Entity[], daily: DailyPoint[]): Per
 
 export function computeComparisonStats(entities: Entity[], totalSpend: number | null, totalConversions: number | null): ComparisonStats {
   const withSpend = entities.filter(e => (e.metrics.spend ?? 0) > 0);
-  const withConversions = entities.filter(e => (e.metrics.conversions ?? 0) > 0);
+  const _withConversions = entities.filter(e => (e.metrics.conversions ?? 0) > 0);
 
   const cpaValues = withSpend
     .filter(e => (e.metrics.conversions ?? 0) > 0)
