@@ -6,8 +6,9 @@ import { execSync } from 'child_process'
 import { createClient } from '@supabase/supabase-js'
 import WebSocket from 'ws'
 
-const PROJECT = 'thermal-effort-460301-m7'
+const PROJECT = process.env.GCP_PROJECT_ID
 const DATASET = 'facebook_ads'
+if (!PROJECT) throw new Error('GCP_PROJECT_ID env var required (source .envrc)')
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -27,10 +28,30 @@ const emptyReads = []
 
 function bq(sql, label) {
   // maxBuffer default is 1MB — actions/insights tables can exceed that
-  const result = execSync(
-    `bq query --nouse_legacy_sql --project_id=${PROJECT} --format=json --max_rows=100000 '${sql.replace(/'/g, "'\\''")}'`,
-    { encoding: 'utf8', maxBuffer: 200 * 1024 * 1024, env: { ...process.env, CLOUDSDK_CONFIG: process.env.CLOUDSDK_CONFIG } }
-  )
+  let result
+  try {
+    result = execSync(
+      `bq query --nouse_legacy_sql --project_id=${PROJECT} --format=json --max_rows=100000 '${sql.replace(/'/g, "'\\''")}'`,
+      { encoding: 'utf8', maxBuffer: 200 * 1024 * 1024, env: { ...process.env, CLOUDSDK_CONFIG: process.env.CLOUDSDK_CONFIG } }
+    )
+  } catch (e) {
+    // Table-not-found means Weld hasn't synced this source yet — skip gracefully.
+    const stdout = String(e.stdout ?? '') + String(e.stderr ?? '')
+    if (/Not found: Table/i.test(stdout)) {
+      console.warn(`  ⚠ ${label ?? 'query'}: source table not in BQ (Weld stream not enabled?)`)
+      if (label) emptyReads.push(label)
+      return []
+    }
+    // Column mismatch — atWork's Weld schema differs from Coolum scaffold assumption.
+    // Log and skip so the rest of the ingest can complete.
+    const colMatch = stdout.match(/Unrecognized name:\s+(\w+)/i)
+    if (colMatch) {
+      console.warn(`  ⚠ ${label ?? 'query'}: column "${colMatch[1]}" not in atWork BQ schema (Weld field not populated) — skipping`)
+      if (label) emptyReads.push(label)
+      return []
+    }
+    throw e
+  }
   const rows = JSON.parse(result)
   if (label && rows.length === 0) {
     console.warn(`  ⚠ ${label}: 0 rows from BQ (Weld sync gap?)`)

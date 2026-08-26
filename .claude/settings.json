@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/scottdudley/SSHJ/atWork/.claude/hooks/block-foreign-tenants.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
