@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Supabase upsert helper for bronze ingest.
 // Mirrors the `sb`/`upsert()` pair in scripts/bronze-*.mjs, batched at 500 rows
 // with the same "throw on error" contract.

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Bronze ingest: GA4 (BigQuery → Supabase)
 // Ported from scripts/bronze-ga4.mjs. SQL preserved verbatim.
 // Sources are pre-aggregated Weld report tables (not raw GA4 events).

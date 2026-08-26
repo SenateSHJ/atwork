@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Daily bronze ingest — wired to Vercel Cron via vercel.json.
 // Runs the Meta, Google Ads, and GA4 ports sequentially. Each source is
 // wrapped in its own try/catch so one failure doesn't kill the others.

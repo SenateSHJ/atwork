@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Bronze ingest: Meta Ads (BigQuery → Supabase)
 // Ported from scripts/bronze-meta.mjs. SQL is preserved verbatim; the only
 // behavioural change is the `bq` helper now uses the @google-cloud/bigquery

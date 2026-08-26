@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Bronze ingest: Google Ads (BigQuery → Supabase)
 // Ported from scripts/bronze-gads.mjs. SQL preserved verbatim.
 // Note: BQ tables have a device dimension — queries aggregate to (date, id).

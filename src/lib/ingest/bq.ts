@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // BigQuery client factory for bronze ingest.
 // Ports the `bq(sql, label)` helper from scripts/bronze-*.mjs to use the
 // @google-cloud/bigquery SDK instead of shelling out to the `bq` CLI.
