@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "weld-sshj": {
+      "type": "http",
+      "url": "https://connect.weld.app/mcp"
+    },
+    "vercel-sshj": {
+      "type": "http",
+      "url": "https://mcp.vercel.com"
+    }
+  }
+}

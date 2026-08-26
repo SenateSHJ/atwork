@@ -1,0 +1,32 @@
+# atWork / SSHJ domain lockdown
+# Owner: SenateSHJ (SSHJ) — end brand: atWork
+# Established: 2026-08-26
+#
+# This is the single source of truth for identifiers this repo is allowed
+# to talk to. Every value below is verified before commit. Any identifier
+# not in this file is a foreign tenant and is refused outright.
+#
+# TBD_* values are unknown as of last update — preflight WARNs (not REFUSEs)
+# on those. Fill them in as they become known.
+
+# ─── Supabase ────────────────────────────────────────────────────────
+SUPABASE_PROJECT_REF=krbveactwladtwiqrmts
+SUPABASE_ORG_ID=TBD_SSHJ_SUPABASE_ORG_ID
+
+# ─── Vercel ──────────────────────────────────────────────────────────
+VERCEL_ORG_ID=team_YaPC3yG9kmyV1Q65UHdDlqMe
+VERCEL_PROJECT_ID=prj_Dh6zyAO6dC1l0jbTKtMSFpBOjKKK
+
+# ─── GitHub ──────────────────────────────────────────────────────────
+GIT_REMOTE=https://github.com/SenateSHJ/atwork.git
+
+# ─── Google Cloud ────────────────────────────────────────────────────
+GCP_PROJECT_ID=dashboard-1-sshj-internal
+GCP_SERVICE_ACCOUNT=weld-850@dashboard-1-sshj-internal.iam.gserviceaccount.com
+BQ_DATASETS=facebook_ads,google_analytics_4,atWork_Google_Ads
+
+# ─── Weld (informational — no CLI checks, MCP-scoped only) ───────────
+WELD_ACCOUNT_SLUG=senateshj
+WELD_META_CONN_ID=m6Us-LmpX6nabV
+WELD_GA4_CONN_ID=7Tb1WwWgQinMpf
+WELD_GADS_CONN_ID=aH7xqWLE00Y9BK

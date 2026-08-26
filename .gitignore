@@ -1,0 +1,17 @@
+.vercel
+.env.local
+.env*.local
+.gcloud/
+.secrets/
+supabase/.temp/
+
+# Node / Next
+node_modules/
+.next/
+next-env.d.ts
+tsconfig.tsbuildinfo
+*.log
+
+# OS
+.DS_Store
+.env*

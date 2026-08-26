@@ -1,0 +1,45 @@
+{
+  "name": "atwork",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "ingest:meta": "node --env-file=.env.local scripts/bronze-meta.mjs",
+    "ingest:gads": "node --env-file=.env.local scripts/bronze-gads.mjs",
+    "ingest:ga4": "node --env-file=.env.local scripts/bronze-ga4.mjs",
+    "ingest:all": "npm run ingest:meta && npm run ingest:gads && npm run ingest:ga4",
+    "preflight": "node scripts/preflight.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.0",
+    "@supabase/supabase-js": "^2.47.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.400.0",
+    "next": "15.3.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.13.3",
+    "tailwind-merge": "^2.5.4",
+    "ws": "^8.21.3",
+    "@google-cloud/bigquery": "^7.9.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.11",
+    "autoprefixer": "^10.5.4",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.4",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.12",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  }
+}

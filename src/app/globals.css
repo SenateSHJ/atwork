@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* atWork brand tokens — RGB channels so Tailwind opacity modifiers work */
+  --brand-ink:    1 62 81;      /* #013E51 — headings, nav, primary chart series */
+  --brand-accent: 232 117 42;   /* #E8752A — buttons, active states */
+  --brand-sand:   242 232 218;  /* #F2E8DA — page background, table zebra */
+  --brand-sky:    168 213 226;  /* #A8D5E2 — secondary series, tags */
+
+  --bg-card:      #ffffff;
+  --text-muted:   #5a6e75;
+  --border:       #ddd5c8;
+}
+
+@layer base {
+  body {
+    @apply bg-sand text-ink;
+    font-family: Inter, system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    @apply text-ink font-semibold;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl border border-[var(--border)] shadow-sm;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium
+           hover:opacity-90 transition-opacity;
+  }
+
+  .btn-ghost {
+    @apply text-ink px-3 py-1.5 rounded-lg text-sm font-medium
+           hover:bg-ink/5 transition-colors;
+  }
+
+  .scorecard-value {
+    @apply text-3xl font-bold text-ink tabular-nums;
+  }
+
+  .scorecard-label {
+    @apply text-xs font-medium uppercase tracking-wide text-[var(--text-muted)];
+  }
+
+  .scorecard-delta-pos {
+    @apply text-xs font-medium text-emerald-600;
+  }
+
+  .scorecard-delta-neg {
+    @apply text-xs font-medium text-rose-600;
+  }
+
+  .table-header {
+    @apply text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]
+           bg-sand/60 px-4 py-3 text-left;
+  }
+
+  .table-cell {
+    @apply px-4 py-3 text-sm text-ink border-t border-[var(--border)];
+  }
+
+  .table-cell-num {
+    @apply px-4 py-3 text-sm text-ink border-t border-[var(--border)] tabular-nums text-right;
+  }
+
+  .nav-link {
+    @apply px-3 py-2 rounded-lg text-sm font-medium text-ink/70
+           hover:text-ink hover:bg-ink/5 transition-colors;
+  }
+
+  .nav-link-active {
+    @apply px-3 py-2 rounded-lg text-sm font-medium bg-ink text-white;
+  }
+
+  .section-title {
+    @apply text-base font-semibold text-ink mb-4;
+  }
+
+  .caveat {
+    @apply text-xs text-[var(--text-muted)] italic;
+  }
+
+  .parked-card {
+    @apply card p-4 border-dashed opacity-60;
+  }
+}
