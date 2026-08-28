@@ -34,7 +34,9 @@ export interface DSTColumn {
   label:    string;
   align?:   'left' | 'right';
   numeric?: boolean;
-  render?:  (row: Record<string, unknown>) => string;
+  // Widened to ReactNode so columns can render richer content (iframes, links,
+  // badges). String returns still work — React coerces primitives to text nodes.
+  render?:  (row: Record<string, unknown>) => React.ReactNode;
 }
 
 interface DailySummaryTableProps {
@@ -138,8 +140,13 @@ export function DailySummaryTable({
 
     // Extract full text of a cell for the hover title attribute — used on
     // dimension cells that may ellipsis-truncate.
-    const cellText = (c: DSTColumn, row: Record<string, unknown>): string =>
+    const cellContent = (c: DSTColumn, row: Record<string, unknown>): React.ReactNode =>
       c.render ? c.render(row) : String(row[c.key] ?? '');
+    // For title tooltips / sort keys we still want a string form.
+    const cellText = (c: DSTColumn, row: Record<string, unknown>): string => {
+      const val = c.render ? c.render(row) : row[c.key];
+      return typeof val === 'string' || typeof val === 'number' ? String(val) : '';
+    };
 
     return (
       <div>
@@ -173,18 +180,19 @@ export function DailySummaryTable({
               {visibleGenericRows.map((row, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 1 ? colors.table.rowAlt : 'transparent' }}>
                   {columns.map(c => {
-                    const value = cellText(c, row);
+                    const content    = cellContent(c, row);
+                    const titleAttr  = cellText(c, row);
                     return (
                       <td
                         key={c.key}
-                        title={!c.numeric ? value : undefined}
+                        title={!c.numeric && titleAttr ? titleAttr : undefined}
                         style={{
                           ...td,
                           ...(c.numeric ? {} : dimCell),
                           textAlign: c.align ?? (c.numeric ? 'right' : 'left'),
                         }}
                       >
-                        {value}
+                        {content}
                       </td>
                     );
                   })}
