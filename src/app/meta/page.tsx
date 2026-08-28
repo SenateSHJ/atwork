@@ -167,7 +167,7 @@ export default function MetaPage() {
     getFilterOptions(startDate, endDate).then(setFilterOptions).catch(console.error);
   }, [startDate, endDate]);
 
-  // Below-fold lazy fetch (Snainton port 838ade8).
+  // Below-fold lazy fetch — sentinel-triggered for the heavy tables.
   const [belowFoldRequested, setBelowFoldRequested] = useState(false);
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
 
@@ -181,30 +181,43 @@ export default function MetaPage() {
     } catch (e) { console.error(e); }
   }, []);
 
+  // Trends charts live visually above the fold, so their data has to load with
+  // the above-fold pass — bundling them in the below-fold Promise.all made them
+  // wait for the slowest of six queries (~2s). Fire this in parallel with the
+  // above-fold fetch and setState the moment trends resolve.
+  const fetchTrendsCb = useCallback(async (sd: string, ed: string, f: MetaFilters) => {
+    try {
+      const data = await fetchBelowFold(sd, ed, f);
+      setTrendsData(data.trends);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  // Heavy tables that stay behind the scroll sentinel. Split into two Promise.all
+  // groups: the four medium fetches together, then targeting separately so if it
+  // hangs it can't hold up engagement/video/devices.
   const fetchBelowFoldCb = useCallback(async (sd: string, ed: string, f: MetaFilters) => {
     try {
-      const [data, entities, engRows, videoRows, targetRows, devRows] = await Promise.all([
-        fetchBelowFold(sd, ed, f),
+      const [entities, engRows, videoRows, devRows] = await Promise.all([
         fetchEntityTables(sd, ed, f),
         fetchEngagement(sd, ed, f),
         fetchVideoWatch(sd, ed),
-        fetchTargeting(sd, ed, f),
         fetchDevices(sd, ed),
       ]);
-      setTrendsData(data.trends);
       setEntityCampaigns(entities.campaigns);
       setEntityAdsets(entities.adsets);
       setEntityAds(entities.ads);
       setEngagement(engRows);
       setVideoWatch(videoRows);
-      setTargeting(targetRows);
       setDevicesData(devRows);
+      // Targeting last — heaviest single query, independent state update.
+      fetchTargeting(sd, ed, f).then(setTargeting).catch(console.error);
     } catch (e) { console.error(e); }
   }, []);
 
   useEffect(() => {
     fetchAboveFoldCb(startDate, endDate, filters);
-  }, [startDate, endDate, filters, fetchAboveFoldCb]);
+    fetchTrendsCb   (startDate, endDate, filters);
+  }, [startDate, endDate, filters, fetchAboveFoldCb, fetchTrendsCb]);
   useEffect(() => {
     if (belowFoldRequested) { fetchBelowFoldCb(startDate, endDate, filters); }
   }, [startDate, endDate, filters, belowFoldRequested, fetchBelowFoldCb]);

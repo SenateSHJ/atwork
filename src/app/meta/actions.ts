@@ -343,7 +343,7 @@ async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: MetaFi
 
 // ─── Below-fold (unchanged — atWork has no studios/agencies/trends set) ────
 
-export async function fetchBelowFold(startDate: string, endDate: string, _filters: MetaFilters): Promise<{
+async function _fetchBelowFoldImpl(startDate: string, endDate: string, _filters: MetaFilters): Promise<{
   trends: TrendRow[];
 }> {
   // MetricTrendsChart source — CPL fields stay null (no lead-attribution
@@ -564,7 +564,7 @@ export interface EngagementRow {
   landing_page_view: number;
 }
 
-export async function fetchEngagement(startDate: string, endDate: string, f: MetaFilters): Promise<EngagementRow[]> {
+async function _fetchEngagementImpl(startDate: string, endDate: string, f: MetaFilters): Promise<EngagementRow[]> {
   const range = { from: startDate, to: endDate };
   const sb = supabaseServer();
   const [rows, ads, campDim] = await Promise.all([
@@ -642,7 +642,7 @@ export interface VideoWatchResult {
 }
 
 // Account-level (source has no ad_id — see migration comment on silver.meta_video_watch).
-export async function fetchVideoWatch(startDate: string, endDate: string): Promise<VideoWatchResult> {
+async function _fetchVideoWatchImpl(startDate: string, endDate: string): Promise<VideoWatchResult> {
   const sb = supabaseServer();
   // videoViews is surfaced standalone above the funnel (different Meta
   // definition — 3-sec+ plays vs. 25%-of-duration). Funnel percentages are
@@ -691,7 +691,7 @@ export interface DevicesResult {
   devices:    BreakdownRow[];
   placements: BreakdownRow[];
 }
-export async function fetchDevices(startDate: string, endDate: string): Promise<DevicesResult> {
+async function _fetchDevicesImpl(startDate: string, endDate: string): Promise<DevicesResult> {
   const sb = supabaseServer();
   const [dev, plc] = await Promise.all([
     sb.schema('silver').from('meta_devices')
@@ -739,7 +739,7 @@ export interface TargetingRow {
   ctr:                               number | null;
 }
 
-export async function fetchTargeting(startDate: string, endDate: string, f: MetaFilters): Promise<TargetingRow[]> {
+async function _fetchTargetingImpl(startDate: string, endDate: string, f: MetaFilters): Promise<TargetingRow[]> {
   const range = { from: startDate, to: endDate };
   const sb = supabaseServer();
   const [dim, perf, campDim] = await Promise.all([
@@ -816,10 +816,30 @@ export async function fetchTargeting(startDate: string, endDate: string, f: Meta
 
 const _fetchAboveFoldCached    = cached(_fetchAboveFoldImpl,    'meta-above-fold');
 const _fetchEntityTablesCached = cached(_fetchEntityTablesImpl, 'meta-entity-tables');
+const _fetchBelowFoldCached    = cached(_fetchBelowFoldImpl,    'meta-below-fold');
+const _fetchEngagementCached   = cached(_fetchEngagementImpl,   'meta-engagement');
+const _fetchVideoWatchCached   = cached(_fetchVideoWatchImpl,   'meta-video-watch');
+const _fetchDevicesCached      = cached(_fetchDevicesImpl,      'meta-devices');
+const _fetchTargetingCached    = cached(_fetchTargetingImpl,    'meta-targeting');
 
 export async function fetchAboveFold(startDate: string, endDate: string, f: MetaFilters) {
   return _fetchAboveFoldCached(startDate, endDate, f);
 }
 export async function fetchEntityTables(startDate: string, endDate: string, f: MetaFilters) {
   return _fetchEntityTablesCached(startDate, endDate, f);
+}
+export async function fetchBelowFold(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchBelowFoldCached(startDate, endDate, f);
+}
+export async function fetchEngagement(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchEngagementCached(startDate, endDate, f);
+}
+export async function fetchVideoWatch(startDate: string, endDate: string) {
+  return _fetchVideoWatchCached(startDate, endDate);
+}
+export async function fetchDevices(startDate: string, endDate: string) {
+  return _fetchDevicesCached(startDate, endDate);
+}
+export async function fetchTargeting(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchTargetingCached(startDate, endDate, f);
 }
