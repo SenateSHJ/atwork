@@ -385,7 +385,7 @@ export default function MetaPage() {
 
       {/* ── Blue scorecards (atWork roster: summed range totals + ratios) ── */}
       <div
-        className=\"scorecard-grid\"
+        className="scorecard-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(5, 160px)',
