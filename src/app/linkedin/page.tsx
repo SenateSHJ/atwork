@@ -65,10 +65,40 @@ const fmtDate  = (v: unknown) =>
 
 // Entity table column config — the two group-by options share this shape,
 // with the "Campaign" parent link inserted only for creatives.
-function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean; withObjective?: boolean; withAdCopy?: boolean }): DSTColumn[] {
+function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean; withObjective?: boolean; withAdCopy?: boolean; withPreview?: boolean }): DSTColumn[] {
   const cols: DSTColumn[] = [
     { key: 'name', label: nameLabel, align: 'left' },
   ];
+  if (opts?.withPreview) {
+    cols.push({
+      key: 'content_reference',
+      label: 'Preview',
+      align: 'left',
+      render: r => {
+        const urn = r.content_reference as string | null | undefined;
+        if (!urn) return '—';
+        // LinkedIn's public embed endpoint — renders the ad's poster image
+        // + text + engagement bar in an iframe. No auth required, lazy-loaded
+        // so only iframes scrolled into view make network requests.
+        const src = `https://www.linkedin.com/embed/feed/update/${encodeURIComponent(urn)}`;
+        return (
+          <iframe
+            src={src}
+            loading="lazy"
+            style={{
+              width: 340,
+              height: 320,
+              border: '1px solid #e5e7eb',
+              borderRadius: 0,
+              display: 'block',
+            }}
+            title="LinkedIn post preview"
+            allow="fullscreen"
+          />
+        );
+      },
+    });
+  }
   if (opts?.withParentCampaign) {
     cols.push({ key: 'campaign_name', label: 'Campaign', align: 'left', render: r => String(r.campaign_name ?? '—') });
   }
@@ -462,7 +492,7 @@ export default function LinkedinPage() {
                   <>
                     <DailySummaryTable
                       data={visibleEntityAds as unknown as Record<string, unknown>[]}
-                      columns={entityColumns('Creative', { withParentCampaign: true, withAdCopy: true })}
+                      columns={entityColumns('Creative', { withParentCampaign: true, withPreview: true, withAdCopy: true })}
                       sortable
                       initialSort={{ key: 'spend', direction: 'desc' }}
                       paginate={20}

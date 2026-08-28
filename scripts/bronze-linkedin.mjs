@@ -131,6 +131,7 @@ const creatives = bq(`
     p.commentary                                      AS post_text,
     p.contentLandingPage                              AS landing_url,
     m.media_title                                     AS media_title,
+    c.content_reference                               AS content_reference,
     c._weld_synced                                    AS bq_synced
   FROM \`${PROJECT}.${DATASET}.creative\` c
   LEFT JOIN \`${PROJECT}.${DATASET}.post\` p
@@ -146,6 +147,7 @@ const nCreatives = await upsert('linkedin_creative', creatives.map(r => ({
   post_text:   r.post_text,
   landing_url: r.landing_url,
   media_title: r.media_title,
+  content_reference: r.content_reference,
   bq_synced:   r.bq_synced || null,
 })), 'id')
 console.log(`  ✓ ${nCreatives} creative rows upserted`)

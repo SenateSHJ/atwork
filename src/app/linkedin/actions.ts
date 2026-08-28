@@ -57,11 +57,12 @@ export interface TrendRow {
 // LinkedIn ad grain: Campaigns + Creatives (no Ad Set). One row shape covers
 // both — creative rows carry `campaign_name` as the parent link.
 export interface EntityRow {
-  name:              string;
-  post_text?:        string | null;   // Creatives table only — ad copy
-  landing_url?:      string | null;   // Creatives table only — click destination
-  campaign_name?:    string | null;   // Creatives table only
-  objective?:        string | null;
+  name:               string;
+  post_text?:         string | null;   // Creatives table only — ad copy
+  landing_url?:       string | null;   // Creatives table only — click destination
+  content_reference?: string | null;   // Creatives table only — LinkedIn post URN for embed
+  campaign_name?:     string | null;   // Creatives table only
+  objective?:         string | null;
   spend:             number;
   impressions:       number;
   clicks:            number;
@@ -135,6 +136,7 @@ type CreativeDim = {
   post_text: string | null;
   landing_url: string | null;
   media_title: string | null;
+  content_reference: string | null;
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -166,7 +168,7 @@ async function loadCampaignDim(): Promise<CampaignDim[]> {
 async function loadCreativeDim(): Promise<CreativeDim[]> {
   const sb = supabaseServer();
   const { data } = await sb.schema('bronze').from('linkedin_creative')
-    .select('id,campaign_id,name,post_text,landing_url,media_title');
+    .select('id,campaign_id,name,post_text,landing_url,media_title,content_reference');
   return (data ?? []) as CreativeDim[];
 }
 
@@ -434,6 +436,7 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
         name,
         post_text:           dim?.post_text ?? null,
         landing_url:         dim?.landing_url ?? null,
+        content_reference:   dim?.content_reference ?? null,
         campaign_name:       parentId ? (idToName.get(parentId) ?? null) : null,
         objective:           parentId ? (idToObj.get(parentId) ?? null) : null,
         spend:               c.spend,
