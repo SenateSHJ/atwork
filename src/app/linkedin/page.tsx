@@ -430,6 +430,43 @@ export default function LinkedinPage() {
         <BFScorecard title="Fullscreen"     value={fmtInt(t?.fullscreen_plays ?? 0)}   sparklineData={spark.videoCompletions} color="blue" size="small" />
       </div>
 
+      {/* Top Performers — sits directly under the scorecards. Client-side pick
+          from entityAds (ads-grain) with noise-floor thresholds so a
+          1-impression ad can't take the top spot. Teal borders match the
+          scorecard/section-card treatment on the rest of the page. */}
+      {entityAds.length > 0 && (() => {
+        const withVideo = entityAds.filter(a => a.video_views >= 500);
+        const withImpr  = entityAds.filter(a => a.impressions >= 500);
+        const withCompl = entityAds.filter(a => (a.video_completions ?? 0) >= 100);
+        const bestCtr    = withImpr.slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
+        const bestRate   = withVideo.slice().sort((a, b) => (b.completion_rate ?? 0) - (a.completion_rate ?? 0))[0];
+        const bestCPCompl = withCompl.slice().sort((a, b) => (a.cost_per_completion ?? Infinity) - (b.cost_per_completion ?? Infinity))[0];
+        const highlights: { label: string; value: string; ad: EntityRow | undefined }[] = [
+          { label: 'Best CTR (500+ impr)',              value: bestCtr    ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                              : '—', ad: bestCtr },
+          { label: 'Highest Completion Rate (500+ vv)', value: bestRate   ? `${(bestRate.completion_rate ?? 0).toFixed(1)}%`                                 : '—', ad: bestRate },
+          { label: 'Best Cost/Completion (100+ compl)', value: bestCPCompl ? `$${(bestCPCompl.cost_per_completion ?? 0).toFixed(3)}`                          : '—', ad: bestCPCompl },
+        ];
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
+            {highlights.map(h => (
+              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card }}>
+                <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  {h.label}
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: typography.fontWeight.bold, color: colors.text.primary, fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+                  {h.value}
+                </div>
+                {h.ad && (
+                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={h.ad.name}>
+                    {h.ad.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* B2 sentinel: fires below-fold entity table fetch when user scrolls near this point */}
       <div ref={setSentinelEl} aria-hidden style={{ height: 1 }} />
 
@@ -507,41 +544,6 @@ export default function LinkedinPage() {
             paginate={10}
           />
         </ChartContainer>
-
-        {/* Top Performers — client-side pick from entityAds (ads-grain), with
-            small-volume noise-floors so the "best" ad isn't a 1-view outlier. */}
-        {entityAds.length > 0 && (() => {
-          const withVideo = entityAds.filter(a => a.video_views >= 500);
-          const withImpr  = entityAds.filter(a => a.impressions >= 500);
-          const withCompl = entityAds.filter(a => (a.video_completions ?? 0) >= 100);
-          const bestCtr    = withImpr.slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
-          const bestRate   = withVideo.slice().sort((a, b) => (b.completion_rate ?? 0) - (a.completion_rate ?? 0))[0];
-          const bestCPCompl = withCompl.slice().sort((a, b) => (a.cost_per_completion ?? Infinity) - (b.cost_per_completion ?? Infinity))[0];
-          const highlights: { label: string; value: string; ad: EntityRow | undefined }[] = [
-            { label: 'Best CTR (500+ impr)',              value: bestCtr    ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                              : '—', ad: bestCtr },
-            { label: 'Highest Completion Rate (500+ vv)', value: bestRate   ? `${(bestRate.completion_rate ?? 0).toFixed(1)}%`                                 : '—', ad: bestRate },
-            { label: 'Best Cost/Completion (100+ compl)', value: bestCPCompl ? `$${(bestCPCompl.cost_per_completion ?? 0).toFixed(3)}`                          : '—', ad: bestCPCompl },
-          ];
-          return (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md }}>
-              {highlights.map(h => (
-                <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `1px solid ${colors.border.default}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card }}>
-                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                    {h.label}
-                  </div>
-                  <div style={{ fontSize: '1.75rem', fontWeight: typography.fontWeight.bold, color: colors.text.primary, fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
-                    {h.value}
-                  </div>
-                  {h.ad && (
-                    <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={h.ad.name}>
-                      {h.ad.name}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          );
-        })()}
 
         {/* Day-of-week performance — LinkedIn is B2B, expect a mid-week peak.
             Bars sized to spend; CTR labelled on the right. */}
