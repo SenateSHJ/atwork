@@ -23,7 +23,7 @@ GIT_REMOTE=https://github.com/SenateSHJ/atwork.git
 # ─── Google Cloud ────────────────────────────────────────────────────
 GCP_PROJECT_ID=dashboard-1-sshj-internal
 GCP_SERVICE_ACCOUNT=weld-850@dashboard-1-sshj-internal.iam.gserviceaccount.com
-BQ_DATASETS=facebook_ads,google_analytics_4,atWork_Google_Ads
+BQ_DATASETS=atWork_Facebook_ads,atWork_Google_Analytics_4,atWork_Google_Ads,atWork_linkedin_ads
 
 # ─── Weld (informational — no CLI checks, MCP-scoped only) ───────────
 WELD_ACCOUNT_SLUG=senateshj

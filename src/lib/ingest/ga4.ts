@@ -6,7 +6,7 @@
 import { makeBq } from './bq'
 import { makeSupabase } from './supabase'
 
-const DATASET = 'google_analytics_4'
+const DATASET = 'atWork_Google_Analytics_4'
 
 function n(v: any): number | null {
   return v == null ? null : parseFloat(v)

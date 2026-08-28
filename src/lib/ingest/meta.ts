@@ -7,7 +7,7 @@
 import { makeBq } from './bq'
 import { makeSupabase } from './supabase'
 
-const DATASET = 'facebook_ads'
+const DATASET = 'atWork_Facebook_ads'
 
 function toDate(ts: any): string | null {
   return ts ? String(ts).slice(0, 10) : null
