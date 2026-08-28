@@ -25,9 +25,9 @@ const MetricTrendsChart = dynamic(
 );
 
 import {
-  fetchAboveFold, fetchBelowFold, fetchEntityTables, getFilterOptions,
+  fetchAboveFold, fetchBelowFold, fetchEntityTables, fetchDayOfWeek, getFilterOptions,
   type LinkedinFilters, type LinkedinFilterOptions,
-  type Totals, type DailyRow, type TrendRow, type EntityRow,
+  type Totals, type DailyRow, type TrendRow, type EntityRow, type DayOfWeekRow,
 } from './actions';
 
 // Local mirror of MetricTrendsChart's exported TrendRow (which carries
@@ -65,10 +65,59 @@ const fmtDate  = (v: unknown) =>
 
 // Entity table column config — the two group-by options share this shape,
 // with the "Campaign" parent link inserted only for creatives.
-function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean; withObjective?: boolean; withAdCopy?: boolean; withPreview?: boolean }): DSTColumn[] {
+function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean; withObjective?: boolean; withAdCopy?: boolean; withPreview?: boolean; withStatusFormat?: boolean }): DSTColumn[] {
   const cols: DSTColumn[] = [
     { key: 'name', label: nameLabel, align: 'left' },
   ];
+  if (opts?.withStatusFormat) {
+    cols.push({
+      key: 'status',
+      label: 'Status',
+      align: 'left',
+      render: r => {
+        const s = String(r.status ?? '').toUpperCase();
+        const cfg: Record<string, { bg: string; fg: string }> = {
+          ACTIVE:    { bg: colors.brand.secondaryFaint, fg: colors.brand.secondaryDark },
+          PAUSED:    { bg: colors.brand.primaryFaint,   fg: colors.brand.primaryDark },
+          COMPLETED: { bg: '#f3f4f6',                    fg: '#6b7280' },
+          DRAFT:     { bg: '#f3f4f6',                    fg: '#6b7280' },
+        };
+        const style = cfg[s] ?? { bg: '#f3f4f6', fg: '#6b7280' };
+        if (!s) return '—';
+        return (
+          <span style={{
+            display: 'inline-block',
+            padding: '2px 8px',
+            fontSize: typography.fontSize.xs,
+            fontWeight: typography.fontWeight.semibold,
+            backgroundColor: style.bg,
+            color: style.fg,
+            textTransform: 'capitalize',
+          }}>{s.toLowerCase()}</span>
+        );
+      },
+    });
+    cols.push({
+      key: 'format',
+      label: 'Format',
+      align: 'left',
+      render: r => {
+        const f = String(r.format ?? '').replace(/_/g, ' ').toLowerCase();
+        if (!f) return '—';
+        return (
+          <span style={{
+            display: 'inline-block',
+            padding: '2px 8px',
+            fontSize: typography.fontSize.xs,
+            fontWeight: typography.fontWeight.medium,
+            backgroundColor: '#f3f4f6',
+            color: colors.text.primary,
+            textTransform: 'capitalize',
+          }}>{f}</span>
+        );
+      },
+    });
+  }
   if (opts?.withPreview) {
     cols.push({
       key: 'content_reference',
@@ -165,6 +214,7 @@ export default function LinkedinPage() {
   const [trendsData,      setTrendsData]      = useState<TrendRow[]>([]);
   const [entityCampaigns, setEntityCampaigns] = useState<EntityRow[]>([]);
   const [entityAds,       setEntityAds]       = useState<EntityRow[]>([]);
+  const [dowData,         setDowData]         = useState<DayOfWeekRow[]>([]);
   type LinkedinGroupBy = 'campaigns' | 'ads';
   const [linkedinGroupBy, setLinkedinGroupBy] = useState<LinkedinGroupBy>('campaigns');
 
@@ -196,9 +246,13 @@ export default function LinkedinPage() {
 
   const fetchBelowFoldCb = useCallback(async (sd: string, ed: string, f: LinkedinFilters) => {
     try {
-      const entities = await fetchEntityTables(sd, ed, f);
+      const [entities, dow] = await Promise.all([
+        fetchEntityTables(sd, ed, f),
+        fetchDayOfWeek(sd, ed),
+      ]);
       setEntityCampaigns(entities.campaigns);
       setEntityAds(entities.ads);
+      setDowData(dow);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -454,6 +508,71 @@ export default function LinkedinPage() {
           />
         </ChartContainer>
 
+        {/* Top Performers — client-side pick from entityAds (ads-grain), with
+            small-volume noise-floors so the "best" ad isn't a 1-view outlier. */}
+        {entityAds.length > 0 && (() => {
+          const withVideo = entityAds.filter(a => a.video_views >= 500);
+          const withImpr  = entityAds.filter(a => a.impressions >= 500);
+          const withCompl = entityAds.filter(a => (a.video_completions ?? 0) >= 100);
+          const bestCtr    = withImpr.slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
+          const bestRate   = withVideo.slice().sort((a, b) => (b.completion_rate ?? 0) - (a.completion_rate ?? 0))[0];
+          const bestCPCompl = withCompl.slice().sort((a, b) => (a.cost_per_completion ?? Infinity) - (b.cost_per_completion ?? Infinity))[0];
+          const highlights: { label: string; value: string; ad: EntityRow | undefined }[] = [
+            { label: 'Best CTR (500+ impr)',              value: bestCtr    ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                              : '—', ad: bestCtr },
+            { label: 'Highest Completion Rate (500+ vv)', value: bestRate   ? `${(bestRate.completion_rate ?? 0).toFixed(1)}%`                                 : '—', ad: bestRate },
+            { label: 'Best Cost/Completion (100+ compl)', value: bestCPCompl ? `$${(bestCPCompl.cost_per_completion ?? 0).toFixed(3)}`                          : '—', ad: bestCPCompl },
+          ];
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md }}>
+              {highlights.map(h => (
+                <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `1px solid ${colors.border.default}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card }}>
+                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    {h.label}
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: typography.fontWeight.bold, color: colors.text.primary, fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+                    {h.value}
+                  </div>
+                  {h.ad && (
+                    <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={h.ad.name}>
+                      {h.ad.name}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Day-of-week performance — LinkedIn is B2B, expect a mid-week peak.
+            Bars sized to spend; CTR labelled on the right. */}
+        {dowData.some(d => d.spend > 0) && (
+          <ChartContainer title="Performance by Day of Week">
+            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              {(() => {
+                const maxSpend = Math.max(...dowData.map(d => d.spend));
+                return dowData.map(d => {
+                  const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
+                  return (
+                    <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                      <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                        {d.weekday}
+                      </div>
+                      <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                      </div>
+                      <div style={{ width: 200, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
+                        <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
+                        <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </ChartContainer>
+        )}
+
         {/* Consolidated grouped table — LinkedIn grain is Campaigns + Ads
             (creatives) only. No Ad Set level in the source. */}
         <ChartContainer title="Performance">
@@ -514,7 +633,7 @@ export default function LinkedinPage() {
                 return (
                   <DailySummaryTable
                     data={entityCampaigns as unknown as Record<string, unknown>[]}
-                    columns={entityColumns('Campaign', { withObjective: true })}
+                    columns={entityColumns('Campaign', { withObjective: true, withStatusFormat: true })}
                     sortable
                     initialSort={{ key: 'spend', direction: 'desc' }}
                     paginate={20}

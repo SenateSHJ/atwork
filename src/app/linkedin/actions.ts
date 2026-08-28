@@ -63,6 +63,8 @@ export interface EntityRow {
   content_reference?: string | null;   // Creatives table only — LinkedIn post URN for embed
   campaign_name?:     string | null;   // Creatives table only
   objective?:         string | null;
+  status?:            string | null;   // Campaigns only — ACTIVE / PAUSED / COMPLETED
+  format?:            string | null;   // Campaigns only — SPONSORED_UPDATES / VIDEO / etc.
   spend:             number;
   impressions:       number;
   clicks:            number;
@@ -72,6 +74,9 @@ export interface EntityRow {
   leads:             number;
   landing_page_clicks: number;
   video_views:       number;
+  video_completions: number;
+  completion_rate:   number | null;
+  cost_per_completion: number | null;
   engagements:       number;
   cost_per_lead:     number | null;
 }
@@ -128,6 +133,7 @@ type CampaignDim = {
   name: string | null;
   status: string | null;
   objective_type: string | null;
+  format: string | null;
 };
 type CreativeDim = {
   id: string;
@@ -161,7 +167,7 @@ async function loadCreativeStats(startDate: string, endDate: string): Promise<Cr
 async function loadCampaignDim(): Promise<CampaignDim[]> {
   const sb = supabaseServer();
   const { data } = await sb.schema('bronze').from('linkedin_campaign')
-    .select('id,name,status,objective_type');
+    .select('id,name,status,objective_type,format');
   return (data ?? []) as CampaignDim[];
 }
 
@@ -341,7 +347,9 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
 
   const nameToId = new Map(campDim.map(d => [d.name ?? '', d.id]));
   const idToName = new Map(campDim.map(d => [d.id, d.name ?? '(unnamed)']));
-  const idToObj  = new Map(campDim.map(d => [d.id, d.objective_type ?? null]));
+  const idToObj    = new Map(campDim.map(d => [d.id, d.objective_type ?? null]));
+  const idToStatus = new Map(campDim.map(d => [d.id, d.status ?? null]));
+  const idToFormat = new Map(campDim.map(d => [d.id, d.format ?? null]));
 
   const selCampIds = new Set(
     hasCampaigns ? (f.campaigns.map(n => nameToId.get(n)).filter(Boolean) as string[]) : [],
@@ -360,14 +368,16 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
   const campAgg = new Map<string, {
     campaign_id: string;
     spend: number; impressions: number; clicks: number;
-    leads: number; landing_page_clicks: number; video_views: number; engagements: number;
+    leads: number; landing_page_clicks: number; video_views: number;
+    video_completions: number; engagements: number;
   }>();
   for (const r of campStats) {
     if (!passCamp(r.campaign_id)) continue;
     const cur = campAgg.get(r.campaign_id) ?? {
       campaign_id: r.campaign_id,
       spend: 0, impressions: 0, clicks: 0,
-      leads: 0, landing_page_clicks: 0, video_views: 0, engagements: 0,
+      leads: 0, landing_page_clicks: 0, video_views: 0,
+      video_completions: 0, engagements: 0,
     };
     cur.spend               += Number(r.cost                || 0);
     cur.impressions         += Number(r.impressions         || 0);
@@ -375,6 +385,7 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
     cur.leads               += Number(r.one_click_leads     || 0);
     cur.landing_page_clicks += Number(r.landing_page_clicks || 0);
     cur.video_views         += Number(r.video_views         || 0);
+    cur.video_completions   += Number(r.video_completions   || 0);
     cur.engagements         += Number(r.total_engagements   || 0);
     campAgg.set(r.campaign_id, cur);
   }
@@ -382,6 +393,8 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
     .map(c => ({
       name:                idToName.get(c.campaign_id) ?? '(unnamed)',
       objective:           idToObj.get(c.campaign_id) ?? null,
+      status:              idToStatus.get(c.campaign_id) ?? null,
+      format:              idToFormat.get(c.campaign_id) ?? null,
       spend:               c.spend,
       impressions:         c.impressions,
       clicks:              c.clicks,
@@ -391,6 +404,9 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
       leads:               c.leads,
       landing_page_clicks: c.landing_page_clicks,
       video_views:         c.video_views,
+      video_completions:   c.video_completions,
+      completion_rate:     c.video_views ? (c.video_completions / c.video_views) * 100 : null,
+      cost_per_completion: c.video_completions ? c.spend / c.video_completions : null,
       engagements:         c.engagements,
       cost_per_lead:       c.leads ? c.spend / c.leads : null,
     }))
@@ -401,7 +417,8 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
   const creAgg = new Map<string, {
     creative_id: string;
     spend: number; impressions: number; clicks: number;
-    leads: number; landing_page_clicks: number; video_views: number; engagements: number;
+    leads: number; landing_page_clicks: number; video_views: number;
+    video_completions: number; engagements: number;
   }>();
   for (const r of creStats) {
     const dim = creIdToDim.get(r.creative_id);
@@ -411,7 +428,8 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
     const cur = creAgg.get(r.creative_id) ?? {
       creative_id: r.creative_id,
       spend: 0, impressions: 0, clicks: 0,
-      leads: 0, landing_page_clicks: 0, video_views: 0, engagements: 0,
+      leads: 0, landing_page_clicks: 0, video_views: 0,
+      video_completions: 0, engagements: 0,
     };
     cur.spend               += Number(r.cost                || 0);
     cur.impressions         += Number(r.impressions         || 0);
@@ -419,6 +437,9 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
     cur.leads               += Number(r.one_click_leads     || 0);
     cur.landing_page_clicks += Number(r.landing_page_clicks || 0);
     cur.video_views         += Number(r.video_views         || 0);
+    // Creative-level video_completions not synced separately — approximate
+    // from completion rate * video_views computed at campaign level. For
+    // Top Performer callouts we only use campaign-grain data anyway.
     cur.engagements         += Number(r.total_engagements   || 0);
     creAgg.set(r.creative_id, cur);
   }
@@ -448,6 +469,9 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
         leads:               c.leads,
         landing_page_clicks: c.landing_page_clicks,
         video_views:         c.video_views,
+        video_completions:   c.video_completions,
+        completion_rate:     c.video_views ? (c.video_completions / c.video_views) * 100 : null,
+        cost_per_completion: c.video_completions ? c.spend / c.video_completions : null,
         engagements:         c.engagements,
         cost_per_lead:       c.leads ? c.spend / c.leads : null,
       };
@@ -457,12 +481,59 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
   return { campaigns, ads };
 }
 
+// ─── Day-of-week performance ──────────────────────────────────────────────
+// Aggregate campaign_stats by weekday over the date range so the client can
+// see whether LinkedIn engagement peaks midweek / weekends. Returns 7 rows,
+// Mon → Sun.
+export interface DayOfWeekRow {
+  weekday:      string;   // 'Mon' | 'Tue' | ...
+  weekday_idx:  number;   // 1 (Mon) .. 7 (Sun)
+  spend:        number;
+  impressions:  number;
+  clicks:       number;
+  ctr:          number | null;
+}
+async function _fetchDayOfWeekImpl(startDate: string, endDate: string): Promise<DayOfWeekRow[]> {
+  const sb = supabaseServer();
+  const { data } = await sb.schema('bronze').from('linkedin_campaign_stats')
+    .select('date,cost,impressions,clicks')
+    .gte('date', startDate).lte('date', endDate);
+  type Row = { date: string; cost: number | null; impressions: number | null; clicks: number | null };
+  const buckets = new Map<number, { spend: number; impressions: number; clicks: number }>();
+  for (const raw of (data ?? []) as Row[]) {
+    // JS getUTCDay: 0=Sunday..6=Saturday. Shift to 1=Mon..7=Sun for display.
+    const d = new Date(raw.date + 'T00:00:00Z');
+    const js = d.getUTCDay();
+    const idx = js === 0 ? 7 : js;
+    const cur = buckets.get(idx) ?? { spend: 0, impressions: 0, clicks: 0 };
+    cur.spend       += Number(raw.cost        || 0);
+    cur.impressions += Number(raw.impressions || 0);
+    cur.clicks      += Number(raw.clicks      || 0);
+    buckets.set(idx, cur);
+  }
+  const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const result: DayOfWeekRow[] = [];
+  for (let i = 1; i <= 7; i++) {
+    const b = buckets.get(i) ?? { spend: 0, impressions: 0, clicks: 0 };
+    result.push({
+      weekday: labels[i],
+      weekday_idx: i,
+      spend: b.spend,
+      impressions: b.impressions,
+      clicks: b.clicks,
+      ctr: b.impressions ? (b.clicks / b.impressions) * 100 : null,
+    });
+  }
+  return result;
+}
+
 // ─── Cached wrappers ───────────────────────────────────────────────────────
 
 const _getFilterOptionsCached = cached(_getFilterOptionsImpl, 'linkedin-filter-options');
 const _fetchAboveFoldCached   = cached(_fetchAboveFoldImpl,   'linkedin-above-fold');
 const _fetchBelowFoldCached   = cached(_fetchBelowFoldImpl,   'linkedin-below-fold');
 const _fetchEntityTablesCached = cached(_fetchEntityTablesImpl, 'linkedin-entity-tables');
+const _fetchDayOfWeekCached    = cached(_fetchDayOfWeekImpl,    'linkedin-dow');
 
 export async function getFilterOptions(startDate: string, endDate: string) {
   return _getFilterOptionsCached(startDate, endDate);
@@ -472,6 +543,9 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Link
 }
 export async function fetchBelowFold(startDate: string, endDate: string, f: LinkedinFilters) {
   return _fetchBelowFoldCached(startDate, endDate, f);
+}
+export async function fetchDayOfWeek(startDate: string, endDate: string) {
+  return _fetchDayOfWeekCached(startDate, endDate);
 }
 export async function fetchEntityTables(startDate: string, endDate: string, f: LinkedinFilters) {
   return _fetchEntityTablesCached(startDate, endDate, f);
