@@ -680,6 +680,48 @@ export async function fetchVideoWatch(startDate: string, endDate: string): Promi
   };
 }
 
+// ─── Device + Placement breakdowns (account-level) ─────────────────────────
+export interface BreakdownRow {
+  name:        string;
+  impressions: number;
+  clicks:      number;
+  spend:       number;
+}
+export interface DevicesResult {
+  devices:    BreakdownRow[];
+  placements: BreakdownRow[];
+}
+export async function fetchDevices(startDate: string, endDate: string): Promise<DevicesResult> {
+  const sb = supabaseServer();
+  const [dev, plc] = await Promise.all([
+    sb.schema('silver').from('meta_devices')
+      .select('device_platform,impressions,clicks,spend')
+      .gte('date', startDate).lte('date', endDate),
+    sb.schema('silver').from('meta_placements')
+      .select('publisher_platform,impressions,clicks,spend')
+      .gte('date', startDate).lte('date', endDate),
+  ]);
+  type DevRow = { device_platform:    string; impressions: number | null; clicks: number | null; spend: number | null };
+  type PlcRow = { publisher_platform: string; impressions: number | null; clicks: number | null; spend: number | null };
+  const rollup = <K extends string>(rows: unknown[], keyField: K): BreakdownRow[] => {
+    const acc = new Map<string, BreakdownRow>();
+    for (const raw of rows) {
+      const r = raw as Record<K, string> & { impressions: number | null; clicks: number | null; spend: number | null };
+      const name = r[keyField] ?? '(unknown)';
+      const cur = acc.get(name) ?? { name, impressions: 0, clicks: 0, spend: 0 };
+      cur.impressions += Number(r.impressions || 0);
+      cur.clicks      += Number(r.clicks      || 0);
+      cur.spend       += Number(r.spend       || 0);
+      acc.set(name, cur);
+    }
+    return [...acc.values()].sort((a, b) => b.impressions - a.impressions);
+  };
+  return {
+    devices:    rollup((dev.data ?? []) as DevRow[], 'device_platform'),
+    placements: rollup((plc.data ?? []) as PlcRow[], 'publisher_platform'),
+  };
+}
+
 export interface TargetingRow {
   adset_id:                          string;
   adset_name:                        string;

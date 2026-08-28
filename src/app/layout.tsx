@@ -11,7 +11,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      {/* suppressHydrationWarning: browser extensions like ColorZilla inject
+          attributes onto <body> before hydration (cz-shortcut-listen="true"),
+          causing a false-positive React hydration mismatch. Suppression is
+          scoped to this element only — children still validate normally. */}
+      <body suppressHydrationWarning>
         <div
           className="app-shell"
           style={{

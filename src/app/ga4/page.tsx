@@ -378,21 +378,29 @@ export default function Ga4Page() {
           />
         </ChartContainer>
 
-        <ChartContainer title="Traffic by Channel">
-          <ByAgencyBarChart
-            data={traffic.map(x => ({ agency_name: x.channel, value: x.sessions }))}
-            lowerIsBetter={false}
-            formatter={v => Number(v).toLocaleString()}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Users by Device">
-          <ByAgencyBarChart
-            data={devices.map(x => ({ agency_name: x.device, value: x.users }))}
-            lowerIsBetter={false}
-            formatter={v => Number(v).toLocaleString()}
-          />
-        </ChartContainer>
+        {/* Traffic by Channel + Users by Device — paired half-width bar charts
+            (equal height via ChartContainer stretching). Wraps to stacked
+            when a column can't hold 380px. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
+          <div style={{ flex: '1 1 380px', minWidth: 0 }}>
+            <ChartContainer title="Traffic by Channel">
+              <ByAgencyBarChart
+                data={traffic.map(x => ({ agency_name: x.channel, value: x.sessions }))}
+                lowerIsBetter={false}
+                formatter={v => Number(v).toLocaleString()}
+              />
+            </ChartContainer>
+          </div>
+          <div style={{ flex: '1 1 380px', minWidth: 0 }}>
+            <ChartContainer title="Users by Device">
+              <ByAgencyBarChart
+                data={devices.map(x => ({ agency_name: x.device, value: x.users }))}
+                lowerIsBetter={false}
+                formatter={v => Number(v).toLocaleString()}
+              />
+            </ChartContainer>
+          </div>
+        </div>
 
         <ChartContainer title="Daily Summary">
           <DailySummaryTable

@@ -646,6 +646,50 @@ for (const suffix of VIDEO_METRIC_SUFFIXES) {
   console.log(`  ✓ ${nRows} ${suffix} rows upserted`)
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  Device + Placement breakdowns (account-level, one row per date × dim)
+// ══════════════════════════════════════════════════════════════════════════
+
+for (const [bqTable, bronzeTable, dimCol] of [
+  ['demographics_delivery_device',   'meta_device',    'device_platform'],
+  ['demographics_delivery_platform', 'meta_placement', 'publisher_platform'],
+]) {
+  console.log(`Fetching ${bqTable}...`)
+  const rows = bq(`
+    SELECT
+      CAST(date AS STRING) AS date,
+      ${dimCol},
+      CAST(impressions        AS INT64)   AS impressions,
+      CAST(clicks             AS INT64)   AS clicks,
+      CAST(spend              AS FLOAT64) AS spend,
+      CAST(reach              AS INT64)   AS reach,
+      CAST(frequency          AS FLOAT64) AS frequency,
+      CAST(inline_link_clicks AS INT64)   AS inline_link_clicks,
+      CAST(cpc                AS FLOAT64) AS cpc,
+      CAST(cpm                AS FLOAT64) AS cpm,
+      CAST(ctr                AS FLOAT64) AS ctr,
+      _weld_synced AS bq_synced
+    FROM \`${PROJECT}.${DATASET}.${bqTable}\`
+    WHERE date >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY))
+  `, bqTable)
+  console.log(`  ${rows.length} rows from BQ`)
+  const nRows = await upsert(bronzeTable, rows.map(r => ({
+    date:               toDate(r.date),
+    [dimCol]:           r[dimCol],
+    impressions:        n(r.impressions),
+    clicks:             n(r.clicks),
+    spend:              n(r.spend),
+    reach:              n(r.reach),
+    frequency:          n(r.frequency),
+    inline_link_clicks: n(r.inline_link_clicks),
+    cpc:                n(r.cpc),
+    cpm:                n(r.cpm),
+    ctr:                n(r.ctr),
+    bq_synced:          r.bq_synced || null,
+  })), `date,${dimCol}`)
+  console.log(`  ✓ ${nRows} ${bronzeTable} rows upserted`)
+}
+
 if (emptyReads.length > 0) {
   console.error('\n⚠ Meta bronze ingest finished with empty upstream reads:')
   for (const t of emptyReads) console.error(`  - ${t}`)

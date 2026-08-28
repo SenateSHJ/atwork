@@ -13,7 +13,7 @@ type Tier = 'client' | 'internal';
 const CLIENT_NAV = [
   { label: 'Meta Ads',        to: '/meta'             },
   { label: 'Google Ads',      to: '/google-ads'       },
-  { label: 'Website',         to: '/ga4'              },
+  { label: 'GA4',             to: '/ga4'              },
   { label: 'Monthly Reports', to: '/monthly-reports'  },
 ];
 
