@@ -91,39 +91,39 @@
   }
 }
 
-/* ── Responsive shell — sidebar collapses to a top bar on tablet + phone.
+/* ── Responsive shell — mobile ≤900px.
       Desktop (>900px) is UNCHANGED — original inline layout wins.       ── */
 @media (max-width: 900px) {
-  .app-sidebar {
-    position: relative !important;
-    width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
-    bottom: auto !important;
-    border-right: none !important;
-    border-bottom: 1px solid #e5e7eb !important;
-    flex-direction: row !important;
-    flex-wrap: wrap;
-    align-items: center;
-    overflow-x: auto !important;
-    overflow-y: visible !important;
-  }
-  .app-sidebar > * {
-    border-bottom: none !important;
-    padding: 8px 12px !important;
-    flex: 0 0 auto;
-  }
+  /* No sidebar on mobile — Nav.tsx renders a top bar + hamburger drawer
+     instead. Push main content down below the fixed 56px top bar. */
   .app-main {
     margin-left: 0 !important;
+    padding-top: 56px !important;
   }
   .app-shell {
     flex-direction: column !important;
   }
-  /* Only at narrow widths does the scorecard grid reflow to auto-fit.
-     Above 900px the fixed pixel columns from the inline style win. */
+
+  /* Scorecard grid: reflow to as-many-140px-columns-as-fit and let each
+     tile fill its cell so the fixed 160px on BFScorecard doesn't
+     left-align them with dead space to the right. Gap bumped so tile
+     separation is clearly visible on small screens. */
   .scorecard-grid {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
-    justify-content: stretch !important;
+    justify-items: stretch !important;
+    gap: 12px !important;
   }
+  .scorecard-grid > * {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* Scorecard tiles always render with a visible separation — teal-on-teal
+   border was invisible after the brand-palette swap, so tiles appeared
+   joined. Give every tile a subtle white outline so gap gets emphasised
+   regardless of viewport. */
+.scorecard-grid > * {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
 }
 
