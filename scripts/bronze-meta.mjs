@@ -253,7 +253,12 @@ console.log(`  ✓ ${nAdDim} ad dimension rows upserted`)
 console.log('Fetching creative...')
 const creatives = bq(`
   SELECT id, account_id, name, object_type, video_id, image_hash, image_url,
-    thumbnail_url, title, body, call_to_action_type, link_url,
+    thumbnail_url,
+    -- Multi-resolution video posters — Weld stores as JSON string of URLs.
+    -- Client picks first (largest, ~160x160). Better than the 64px thumbnail_url
+    -- for video-format ads which have no image_url.
+    video_thumbnail_array,
+    title, body, call_to_action_type, link_url,
     effective_object_story_id,
     _weld_synced AS bq_synced
   FROM \`${PROJECT}.${DATASET}.creative\`
@@ -268,6 +273,7 @@ const nCreatives = await upsert('meta_creative', creatives.map(r => ({
   image_hash:                r.image_hash,
   image_url:                 r.image_url,
   thumbnail_url:             r.thumbnail_url,
+  video_thumbnail_array:     r.video_thumbnail_array,
   title:                     r.title,
   body:                      r.body,
   call_to_action_type:       r.call_to_action_type,

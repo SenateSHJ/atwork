@@ -71,33 +71,34 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
       label: 'Preview',
       align: 'left',
       render: r => {
-        // Best available preview, in order of quality:
-        //   1. Facebook post embed iframe — shows the actual video ad at real
-        //      resolution. Requires effective_object_story_id (page_id_post_id).
-        //   2. High-res image_url from Meta creative (image ads only).
-        //   3. thumbnail_url (last resort — usually 64px, pixelated).
-        const story = r.effective_object_story_id as string | null | undefined;
-        if (story && story.includes('_')) {
-          const [pageId, postId] = story.split('_');
-          const href = `https://www.facebook.com/${pageId}/posts/${postId}`;
-          const src = `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(href)}&show_text=false&width=280`;
-          return (
-            <iframe
-              src={src}
-              loading="lazy"
-              style={{ width: 280, height: 320, border: '1px solid #e5e7eb', display: 'block' }}
-              title="Facebook ad preview"
-              allow="autoplay; encrypted-media; picture-in-picture; web-share"
-              scrolling="no"
-            />
-          );
+        // Preview quality fallback chain:
+        //   1. image_url — high-res static image (only populated for image ads;
+        //      NULL for videos which is atWork's active-campaign case)
+        //   2. video_thumbnail_array[0] — Meta's 160x160 video poster (2.5×
+        //      more pixels than thumbnail_url). Stored as JSON string
+        //   3. thumbnail_url — last resort, 64px signed URL from Meta CDN
+        //
+        // Facebook post embed can't be used here — atWork's ads are all
+        // dark posts (unpublished in-Ads-Manager creatives) which return
+        // "post no longer available" via the public embed endpoint.
+        let src: string | null = (r.image_url as string | null | undefined) ?? null;
+        if (!src) {
+          const arr = r.video_thumbnail_array as string | null | undefined;
+          if (arr) {
+            try {
+              const parsed = JSON.parse(arr) as unknown;
+              if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === 'string') {
+                src = parsed[0];
+              }
+            } catch { /* string wasn't valid JSON — fall through */ }
+          }
         }
-        const img = (r.image_url as string | null | undefined) ?? (r.thumbnail_url as string | null | undefined);
-        if (!img) return '—';
+        if (!src) src = (r.thumbnail_url as string | null | undefined) ?? null;
+        if (!src) return '—';
         return (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={img}
+            src={src}
             alt="Ad creative"
             loading="lazy"
             style={{ width: 200, height: 200, objectFit: 'contain', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', display: 'block' }}

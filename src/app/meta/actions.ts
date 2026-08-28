@@ -386,6 +386,7 @@ export interface EntityRow {
   // Creative preview + copy — Ads table only (via silver.meta_ads_with_creative).
   image_url?:          string | null;
   thumbnail_url?:      string | null;
+  video_thumbnail_array?: string | null;  // JSON string of 160×160 video posters (Weld ships as string)
   effective_object_story_id?: string | null;   // {page_id}_{post_id} — powers FB post embed
   creative_title?:     string | null;
   creative_body?:      string | null;
@@ -544,6 +545,7 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Met
         media_type:          a.media_type ?? null,
         image_url:           a.image_url ?? null,
         thumbnail_url:       a.thumbnail_url ?? null,
+        video_thumbnail_array: a.video_thumbnail_array ?? null,
         effective_object_story_id: a.effective_object_story_id ?? null,
         creative_title:      a.creative_title ?? null,
         creative_body:       a.creative_body ?? null,
