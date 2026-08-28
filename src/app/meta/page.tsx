@@ -61,10 +61,55 @@ const fmtDate  = (v: unknown) =>
 // Column config for the entity tables — entity name + optional Objective /
 // Creative Type + shared metric block (Spend/Impressions/Clicks/Reach, CTR/CPC/CPM,
 // Conversions, Cost per Conversion).
-function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; withObjective?: boolean }): DSTColumn[] {
+function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; withObjective?: boolean; withPreview?: boolean; withAdCopy?: boolean }): DSTColumn[] {
   const cols: DSTColumn[] = [
     { key: 'name', label: nameLabel, align: 'left' },
   ];
+  if (opts?.withPreview) {
+    cols.push({
+      key: 'thumbnail_url',
+      label: 'Preview',
+      align: 'left',
+      render: r => {
+        const thumb = (r.thumbnail_url as string | null | undefined) ?? (r.image_url as string | null | undefined);
+        if (!thumb) return '—';
+        return (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={thumb}
+            alt="Ad creative"
+            loading="lazy"
+            style={{ width: 160, height: 160, objectFit: 'cover', border: '1px solid #e5e7eb', display: 'block' }}
+          />
+        );
+      },
+    });
+  }
+  if (opts?.withAdCopy) {
+    cols.push({
+      key: 'creative_body',
+      label: 'Ad Copy',
+      align: 'left',
+      render: r => {
+        const title = (r.creative_title as string | null | undefined) ?? '';
+        const body  = (r.creative_body  as string | null | undefined) ?? '';
+        const cta   = (r.call_to_action_type as string | null | undefined) ?? '';
+        if (!title && !body && !cta) return '—';
+        const bodyShort = body.length > 160 ? body.slice(0, 160).trim() + '…' : body;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {title && <div style={{ fontWeight: typography.fontWeight.semibold, color: colors.text.primary }}>{title}</div>}
+            {bodyShort && <div style={{ color: colors.text.secondary, fontSize: typography.fontSize.xs, lineHeight: 1.4 }}>{bodyShort}</div>}
+            {cta && (
+              <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold, backgroundColor: colors.brand.primaryFaint, color: colors.brand.primaryDark, width: 'fit-content' }}>
+                {cta.replace(/_/g, ' ')}
+              </span>
+            )}
+          </div>
+        );
+      },
+    });
+  }
   if (opts?.withObjective) {
     cols.push({ key: 'objective', label: 'Objective', align: 'left', render: r => String(r.objective ?? '—') });
   }
@@ -626,7 +671,7 @@ export default function MetaPage() {
                   <>
                     <DailySummaryTable
                       data={visibleEntityAds as unknown as DailyRow[]}
-                      columns={entityColumns('Ad Name', { withMediaType: true })}
+                      columns={entityColumns('Ad Name', { withMediaType: true, withPreview: true, withAdCopy: true })}
                       sortable
                       initialSort={{ key: 'spend', direction: 'desc' }}
                       paginate={20}

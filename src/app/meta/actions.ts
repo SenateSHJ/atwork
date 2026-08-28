@@ -383,6 +383,12 @@ export interface EntityRow {
   name:                string;
   media_type?:         string | null;
   objective?:          string | null;   // Campaigns table only
+  // Creative preview + copy — Ads table only (via silver.meta_ads_with_creative).
+  image_url?:          string | null;
+  thumbnail_url?:      string | null;
+  creative_title?:     string | null;
+  creative_body?:      string | null;
+  call_to_action_type?: string | null;
   spend:               number;
   impressions:         number;
   clicks:              number;
@@ -535,6 +541,11 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Met
       return {
         name:                a.ad_name ?? '(unnamed)',
         media_type:          a.media_type ?? null,
+        image_url:           a.image_url ?? null,
+        thumbnail_url:       a.thumbnail_url ?? null,
+        creative_title:      a.creative_title ?? null,
+        creative_body:       a.creative_body ?? null,
+        call_to_action_type: a.call_to_action_type ?? null,
         spend:               a.spend,
         impressions:         a.impressions,
         clicks:              a.clicks,

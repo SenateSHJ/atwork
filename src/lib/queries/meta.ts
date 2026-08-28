@@ -195,13 +195,19 @@ export async function getMetaCreativeOptions(range: DateRange) {
 export async function getMetaAdsCreative(range: DateRange) {
   const sb = supabaseServer()
   const { data } = await sb.schema('silver').from('meta_ads_with_creative')
-    .select('ad_id,ad_name,adset_id,campaign_id,media_type,spend,impressions,clicks,reach')
+    .select('ad_id,ad_name,adset_id,campaign_id,creative_id,media_type,image_url,thumbnail_url,creative_title,creative_body,call_to_action_type,spend,impressions,clicks,reach')
     .gte('date', range.from).lte('date', range.to)
   if (!data?.length) return []
 
   const map = new Map<string, {
     ad_id: string; ad_name: string | null; adset_id: string; campaign_id: string;
+    creative_id: string | null;
     media_type: string | null;
+    image_url: string | null;
+    thumbnail_url: string | null;
+    creative_title: string | null;
+    creative_body: string | null;
+    call_to_action_type: string | null;
     spend: number; impressions: number; clicks: number; reach: number;
   }>()
   for (const r of data) {
@@ -211,7 +217,13 @@ export async function getMetaAdsCreative(range: DateRange) {
       ad_name: (r.ad_name as string) ?? null,
       adset_id: r.adset_id as string,
       campaign_id: r.campaign_id as string,
+      creative_id: (r.creative_id as string) ?? null,
       media_type: (r.media_type as string) ?? null,
+      image_url: (r.image_url as string) ?? null,
+      thumbnail_url: (r.thumbnail_url as string) ?? null,
+      creative_title: (r.creative_title as string) ?? null,
+      creative_body: (r.creative_body as string) ?? null,
+      call_to_action_type: (r.call_to_action_type as string) ?? null,
       spend: 0, impressions: 0, clicks: 0, reach: 0,
     }
     e.spend       += Number(r.spend       || 0)
