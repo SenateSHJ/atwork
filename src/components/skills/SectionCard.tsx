@@ -25,7 +25,7 @@ export interface SectionCardProps {
 
 export function SectionCard({ title, icon, headerRight, children, className }: SectionCardProps) {
   return (
-    <div className={`bg-gray-900 border border-gray-700 rounded-lg p-5 mb-5 ${className ?? ''}`}>
+    <div className={`bg-gray-900 border border-gray-700 rounded-none p-5 mb-5 ${className ?? ''}`}>
       {title && (
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-white uppercase tracking-wider flex items-center gap-2">

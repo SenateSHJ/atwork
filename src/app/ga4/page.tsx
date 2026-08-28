@@ -303,7 +303,7 @@ export default function Ga4Page() {
             height: '36.5px',
             backgroundColor: colors.ui.tealAlt,
             color: colors.text.inverse,
-            border: 'none', borderRadius: 4, padding: '0 16px',
+            border: 'none', borderRadius: 0, padding: '0 16px',
             fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.medium,
             cursor: refreshing ? 'wait' : 'pointer',
             opacity: refreshing ? 0.6 : 1,

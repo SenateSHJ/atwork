@@ -29,7 +29,7 @@ export function StatCard({
 }: StatCardProps) {
   const valueSize = size === 'lg' ? 'text-3xl' : 'text-2xl';
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+    <div className="bg-gray-900 border border-gray-700 rounded-none p-4">
       <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
         {icon}
         {label}

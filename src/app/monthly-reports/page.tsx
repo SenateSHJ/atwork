@@ -71,7 +71,7 @@ export default function MonthlyReportsPage() {
             height: '36.5px',
             padding: '0 12px',
             border: `1px solid ${colors.border.default}`,
-            borderRadius: 4,
+            borderRadius: 0,
             fontSize: typography.fontSize.sm,
             backgroundColor: colors.background.card,
             color: colors.text.primary,

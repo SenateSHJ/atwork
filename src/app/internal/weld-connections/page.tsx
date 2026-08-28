@@ -47,7 +47,7 @@ export default async function WeldConnectionsPage() {
           return (
             <div
               key={c.connection.connection_id}
-              className={`border rounded-lg p-3 ${isActive ? 'border-gray-700 bg-gray-900/40' : 'border-gray-800 bg-gray-950/40 opacity-60'}`}
+              className={`border rounded-none p-3 ${isActive ? 'border-gray-700 bg-gray-900/40' : 'border-gray-800 bg-gray-950/40 opacity-60'}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0 space-y-1">

@@ -354,7 +354,7 @@ export default function MetaPage() {
             backgroundColor: colors.ui.tealAlt,
             color: colors.text.inverse,
             border: 'none',
-            borderRadius: 4,
+            borderRadius: 0,
             padding: '0 16px',
             fontSize: typography.fontSize.sm,
             fontWeight: typography.fontWeight.medium,
@@ -462,10 +462,10 @@ export default function MetaPage() {
                     fontWeight: typography.fontWeight.semibold,
                     fontFamily: typography.fontFamily.sans,
                     cursor: 'pointer',
-                    border: `1px solid ${active ? colors.brand.primary : '#d1d5db'}`,
+                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
                     backgroundColor: active ? colors.brand.primary : '#fff',
-                    color: active ? '#fff' : colors.text.primary,
-                    borderRadius: 6,
+                    color: active ? colors.brand.primaryText : colors.text.primary,
+                    borderRadius: 0,
                   }}
                 >
                   {opt.label}

@@ -114,7 +114,7 @@ export function FlaggedStudiosTable({
               backgroundColor: colors.ui.teal,
               color: '#ffffff',
               border: 'none',
-              borderRadius: 4,
+              borderRadius: 0,
               padding: '8px 20px',
               fontWeight: typography.fontWeight.semibold,
               cursor: 'pointer',

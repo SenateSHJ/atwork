@@ -45,7 +45,7 @@ export default async function InternalHealth() {
         </p>
       </div>
 
-      <div className={`flex items-center gap-4 p-5 border rounded-lg mb-5 ${bannerCls}`}>
+      <div className={`flex items-center gap-4 p-5 border rounded-none mb-5 ${bannerCls}`}>
         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${bannerIcon}`}>
           {hasCritical || hasWarning
             ? <AlertTriangle className="w-5 h-5 text-white" />

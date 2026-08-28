@@ -35,7 +35,7 @@ export function StudioLeaderboardTable({ title, data }: StudioLeaderboardTablePr
         flex: 1,
         minWidth: 0,
         border: `2px solid ${colors.ui.black}`,
-        borderRadius: 8,
+        borderRadius: 0,
         overflow: 'hidden',
         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
       }}

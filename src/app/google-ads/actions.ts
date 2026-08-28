@@ -8,6 +8,7 @@ import {
   getGadsCampaignProximity,
 } from '@/lib/queries/gads';
 import type { Totals, DailyRow, AgencyRow, TrendRow } from '../meta/actions';
+import { cached } from '@/lib/cache';
 
 // ─── Filters ────────────────────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ export async function getFilterOptions(startDate: string, endDate: string): Prom
 
 // ─── Above-fold ────────────────────────────────────────────────────────────
 
-export async function fetchAboveFold(startDate: string, endDate: string, f: GadsFilters): Promise<{
+async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: GadsFilters): Promise<{
   totals:        Totals | null;
   daily:         GadsDailyRow[];
   fallback:      boolean;
@@ -368,4 +369,10 @@ export async function fetchEntityTables(startDate: string, endDate: string, f: G
     }));
 
   return { campaigns, adGroups, ads: adRows, keywords, searchTerms };
+}
+
+// ─── Cached wrapper (1hr TTL — data refreshes daily via 14:00 UTC cron) ────
+const _fetchAboveFoldCached = cached(_fetchAboveFoldImpl, 'gads-above-fold');
+export async function fetchAboveFold(startDate: string, endDate: string, f: GadsFilters) {
+  return _fetchAboveFoldCached(startDate, endDate, f);
 }

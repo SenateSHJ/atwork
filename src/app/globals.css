@@ -4,14 +4,14 @@
 
 :root {
   /* atWork brand tokens — RGB channels so Tailwind opacity modifiers work */
-  --brand-ink:    1 62 81;      /* #013E51 — headings, nav, deep ink */
-  --brand-accent: 33 139 149;   /* #218b95 — buttons, active states (atWork teal) */
+  --brand-ink:    1 62 81;      /* #013E51 — deep teal for text (readability) */
+  --brand-accent: 204 212 4;    /* #ccd404 — buttons, CTAs (atWork yellow) */
   --brand-sand:   255 255 255;  /* white — page background */
-  --brand-sky:    204 212 4;    /* #ccd404 — secondary accent (atWork yellow-green) */
+  --brand-sky:    33 139 149;   /* #218b95 — borders, scorecard bg (atWork teal) */
 
   --bg-card:      #ffffff;
   --text-muted:   #5a6e75;
-  --border:       #e5e7eb;
+  --border:       #218b95;
 }
 
 @layer base {
@@ -27,16 +27,16 @@
 
 @layer components {
   .card {
-    @apply bg-white rounded-xl border border-[var(--border)] shadow-sm;
+    @apply bg-white rounded-none border border-[var(--border)] shadow-sm;
   }
 
   .btn-primary {
-    @apply bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium
+    @apply bg-accent text-ink px-4 py-2 rounded-none text-sm font-medium
            hover:opacity-90 transition-opacity;
   }
 
   .btn-ghost {
-    @apply text-ink px-3 py-1.5 rounded-lg text-sm font-medium
+    @apply text-ink px-3 py-1.5 rounded-none text-sm font-medium
            hover:bg-ink/5 transition-colors;
   }
 
@@ -70,12 +70,12 @@
   }
 
   .nav-link {
-    @apply px-3 py-2 rounded-lg text-sm font-medium text-ink/70
+    @apply px-3 py-2 rounded-none text-sm font-medium text-ink/70
            hover:text-ink hover:bg-ink/5 transition-colors;
   }
 
   .nav-link-active {
-    @apply px-3 py-2 rounded-lg text-sm font-medium bg-ink text-white;
+    @apply px-3 py-2 rounded-none text-sm font-medium bg-ink text-white;
   }
 
   .section-title {

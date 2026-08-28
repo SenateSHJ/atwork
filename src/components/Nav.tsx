@@ -60,7 +60,7 @@ export function Nav() {
           style={{
             display: 'flex',
             border: `1px solid ${colors.border.default}`,
-            borderRadius: 6,
+            borderRadius: 0,
             overflow: 'hidden',
           }}
         >

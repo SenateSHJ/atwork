@@ -6,35 +6,35 @@
 
 export const colors = {
   brand: {
-    // atWork website brand teal
-    primary:      '#218b95',
-    primaryDark:  '#1a6e78',   // hover / active teal
-    primaryFaint: '#d4ecf0',   // pale teal for tinted backgrounds
-    primaryText:  '#FFFFFF',
-    // atWork website accent — yellow-green (used sparingly: chart series, badges)
-    secondary:      '#ccd404',
-    secondaryDark:  '#a3a903',
-    secondaryFaint: '#f5f7cc',
+    // Buttons + CTAs — yellow-green (atWork accent). Dark text stays legible on it.
+    primary:      '#ccd404',
+    primaryDark:  '#a3a903',
+    primaryFaint: '#f5f7cc',
+    primaryText:  '#013E51',   // dark text on yellow buttons for contrast
+    // Borders + scorecard backgrounds — teal (atWork primary brand)
+    secondary:      '#218b95',
+    secondaryDark:  '#1a6e78',
+    secondaryFaint: '#d4ecf0',
   },
 
   text: {
-    primary:   '#013E51',   // atWork ink — headings, body (deep teal reads well on white)
-    secondary: '#5A6E75',   // muted
+    primary:   '#013E51',   // deep teal ink — body/headings (readable on white)
+    secondary: '#5A6E75',   // muted (kept for hierarchy — legibility non-negotiable)
     disabled:  '#9CA3AF',
     inverse:   '#FFFFFF',
   },
 
   background: {
     page:    '#FFFFFF',   // main page background — white
-    panel:   '#F9FAFB',
+    panel:   '#FFFFFF',
     card:    '#FFFFFF',
     overlay: 'rgba(0, 0, 0, 0.4)',
   },
 
   border: {
-    default: '#E5E7EB',   // neutral gray (works on white bg)
-    strong:  '#D1D5DB',
-    focus:   '#218b95',   // matches brand.primary
+    default: '#218b95',   // teal borders per brand
+    strong:  '#1a6e78',
+    focus:   '#ccd404',   // yellow focus ring
   },
 
   status: {
@@ -49,33 +49,33 @@ export const colors = {
   },
 
   table: {
-    rowAlt:   '#F9FAFB',   // very light gray zebra on white
-    rowHover: '#F3F4F6',
+    rowAlt:   '#d4ecf0',   // very faint teal zebra
+    rowHover: '#f5f7cc',   // very faint yellow hover
   },
 
   ui: {
-    // Scorecard dark-variant background — atWork ink (deep, high-contrast)
-    teal:    '#013E51',
-    // Filter button / active state — atWork brand teal
-    tealAlt: '#218b95',
-    // Card borders + chart header bars
-    black:   '#013E51',
+    // Scorecard "blue"-variant background — atWork teal
+    teal:    '#218b95',
+    // Filter button / active state — atWork yellow
+    tealAlt: '#ccd404',
+    // Card borders + chart header bars — teal
+    black:   '#218b95',
   },
 
   chart: [
-    '#218b95',   // atWork teal   — primary series
-    '#ccd404',   // atWork accent — second series
-    '#013E51',   // atWork ink    — third series
-    '#10B981',   // emerald       — fourth series
-    '#F59E0B',   // amber         — fifth series
+    '#218b95',   // teal            — primary series
+    '#ccd404',   // yellow          — second series
+    '#1a6e78',   // teal dark       — third
+    '#a3a903',   // yellow dark     — fourth
+    '#d4ecf0',   // teal pale       — fifth
   ] as const,
 
   chartDark: [
     '#1a6e78',
     '#a3a903',
-    '#001F2A',
-    '#059669',
-    '#D97706',
+    '#013E51',
+    '#7a8102',
+    '#218b95',
   ] as const,
 } as const;
 
@@ -126,12 +126,14 @@ export const spacing = {
 
 // ─── Border radius ────────────────────────────────────────────────────────────
 
+// Client preference: square corners across the app. Pill radius kept for
+// badges/status chips where a fully-round shape carries semantic meaning.
 export const borderRadius = {
   none: '0px',
-  sm:   '4px',
-  md:   '8px',
-  lg:   '12px',
-  xl:   '16px',
+  sm:   '0px',
+  md:   '0px',
+  lg:   '0px',
+  xl:   '0px',
   full: '9999px',
 } as const;
 

@@ -6,6 +6,7 @@ import {
 } from '@/lib/queries/meta';
 import { getGa4Trend } from '@/lib/queries/ga4';
 import { supabaseServer } from '@/lib/supabase/server';
+import { cached } from '@/lib/cache';
 
 // ─── BFT-shaped response types (kept for compatibility with the page shell) ─
 
@@ -158,7 +159,7 @@ function aggregate(rows: AggRow[]) {
 
 // ─── Above-fold fetch (filter-aware) ───────────────────────────────────────
 
-export async function fetchAboveFold(startDate: string, endDate: string, f: MetaFilters): Promise<{
+async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: MetaFilters): Promise<{
   totals:        Totals | null;
   daily:         DailyRow[];
   fallback:      boolean;
@@ -394,7 +395,7 @@ export interface EntityRow {
   cpm:                 number | null;
 }
 
-export async function fetchEntityTables(startDate: string, endDate: string, f: MetaFilters): Promise<{
+async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: MetaFilters): Promise<{
   campaigns: EntityRow[];
   adsets:    EntityRow[];
   ads:       EntityRow[];
@@ -767,4 +768,16 @@ export async function fetchTargeting(startDate: string, endDate: string, f: Meta
     });
   }
   return rows.sort((a, b) => b.spend - a.spend);
+}
+
+// ─── Cached wrappers (1hr TTL — data refreshes daily via 14:00 UTC cron) ────
+
+const _fetchAboveFoldCached    = cached(_fetchAboveFoldImpl,    'meta-above-fold');
+const _fetchEntityTablesCached = cached(_fetchEntityTablesImpl, 'meta-entity-tables');
+
+export async function fetchAboveFold(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchAboveFoldCached(startDate, endDate, f);
+}
+export async function fetchEntityTables(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchEntityTablesCached(startDate, endDate, f);
 }

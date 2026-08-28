@@ -7,6 +7,7 @@ import {
 import type {
   Totals, DailyRow, AgencyRow, TrendRow,
 } from '../meta/actions';
+import { cached } from '@/lib/cache';
 
 export interface Ga4Totals {
   users:               number;
@@ -123,7 +124,7 @@ function daysBetween(a: string, b: string): number {
   return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
 }
 
-export async function fetchAboveFold(startDate: string, endDate: string, _filters: Ga4Filters): Promise<{
+async function _fetchAboveFoldImpl(startDate: string, endDate: string, _filters: Ga4Filters): Promise<{
   totals:        Totals | null;
   ga4Totals:     Ga4Totals | null;
   ga4Trend:      Ga4TrendPoint[];
@@ -264,4 +265,10 @@ export async function fetchBelowFold(startDate: string, endDate: string, _filter
     })),
     leadEvents: leads.map(l => ({ event_name: l.event_name, count: l.total })),
   };
+}
+
+// ─── Cached wrapper (1hr TTL — data refreshes daily via 14:00 UTC cron) ────
+const _fetchAboveFoldCached = cached(_fetchAboveFoldImpl, 'ga4-above-fold');
+export async function fetchAboveFold(startDate: string, endDate: string, filters: Ga4Filters) {
+  return _fetchAboveFoldCached(startDate, endDate, filters);
 }
