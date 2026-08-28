@@ -823,6 +823,45 @@ async function _fetchTargetingImpl(startDate: string, endDate: string, f: MetaFi
   return rows.sort((a, b) => b.spend - a.spend);
 }
 
+// ─── Day-of-week performance (Mon..Sun rollup) ────────────────────────────
+export interface DayOfWeekRow {
+  weekday:     string;
+  weekday_idx: number;
+  spend:       number;
+  impressions: number;
+  clicks:      number;
+  ctr:         number | null;
+}
+async function _fetchDayOfWeekImpl(startDate: string, endDate: string): Promise<DayOfWeekRow[]> {
+  const sb = supabaseServer();
+  const { data } = await sb.schema('bronze').from('meta_campaign_insight')
+    .select('date,spend,impressions,clicks')
+    .gte('date', startDate).lte('date', endDate);
+  type Row = { date: string; spend: number | null; impressions: number | null; clicks: number | null };
+  const buckets = new Map<number, { spend: number; impressions: number; clicks: number }>();
+  for (const raw of (data ?? []) as Row[]) {
+    const d = new Date(String(raw.date).slice(0, 10) + 'T00:00:00Z');
+    const js = d.getUTCDay();
+    const idx = js === 0 ? 7 : js;
+    const cur = buckets.get(idx) ?? { spend: 0, impressions: 0, clicks: 0 };
+    cur.spend       += Number(raw.spend       || 0);
+    cur.impressions += Number(raw.impressions || 0);
+    cur.clicks      += Number(raw.clicks      || 0);
+    buckets.set(idx, cur);
+  }
+  const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const result: DayOfWeekRow[] = [];
+  for (let i = 1; i <= 7; i++) {
+    const b = buckets.get(i) ?? { spend: 0, impressions: 0, clicks: 0 };
+    result.push({
+      weekday: labels[i], weekday_idx: i,
+      spend: b.spend, impressions: b.impressions, clicks: b.clicks,
+      ctr: b.impressions ? (b.clicks / b.impressions) * 100 : null,
+    });
+  }
+  return result;
+}
+
 // ─── Cached wrappers (1hr TTL — data refreshes daily via 14:00 UTC cron) ────
 
 const _fetchAboveFoldCached    = cached(_fetchAboveFoldImpl,    'meta-above-fold');
@@ -832,6 +871,7 @@ const _fetchEngagementCached   = cached(_fetchEngagementImpl,   'meta-engagement
 const _fetchVideoWatchCached   = cached(_fetchVideoWatchImpl,   'meta-video-watch');
 const _fetchDevicesCached      = cached(_fetchDevicesImpl,      'meta-devices');
 const _fetchTargetingCached    = cached(_fetchTargetingImpl,    'meta-targeting');
+const _fetchDayOfWeekCached    = cached(_fetchDayOfWeekImpl,    'meta-dow');
 
 export async function fetchAboveFold(startDate: string, endDate: string, f: MetaFilters) {
   return _fetchAboveFoldCached(startDate, endDate, f);
@@ -853,4 +893,7 @@ export async function fetchDevices(startDate: string, endDate: string) {
 }
 export async function fetchTargeting(startDate: string, endDate: string, f: MetaFilters) {
   return _fetchTargetingCached(startDate, endDate, f);
+}
+export async function fetchDayOfWeek(startDate: string, endDate: string) {
+  return _fetchDayOfWeekCached(startDate, endDate);
 }

@@ -28,11 +28,11 @@ const MetricTrendsChart = dynamic(
 );
 import {
   fetchAboveFold, fetchBelowFold, fetchEntityTables, getFilterOptions,
-  fetchEngagement, fetchVideoWatch, fetchTargeting, fetchDevices,
+  fetchEngagement, fetchVideoWatch, fetchTargeting, fetchDevices, fetchDayOfWeek,
   type MetaFilters, type MetaFilterOptions,
   type Totals, type DailyRow, type AgencyRow, type TrendRow,
   type EntityRow, type EngagementRow, type VideoWatchResult, type TargetingRow,
-  type DevicesResult,
+  type DevicesResult, type DayOfWeekRow,
 } from './actions';
 import { META_CONVERSION_DEFINITION } from './constants';
 
@@ -71,15 +71,17 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
       label: 'Preview',
       align: 'left',
       render: r => {
-        const thumb = (r.thumbnail_url as string | null | undefined) ?? (r.image_url as string | null | undefined);
-        if (!thumb) return '—';
+        // Prefer the high-res image_url; fall back to thumbnail_url when
+        // the ad is video-only (video creatives rarely have image_url).
+        const src = (r.image_url as string | null | undefined) ?? (r.thumbnail_url as string | null | undefined);
+        if (!src) return '—';
         return (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={thumb}
+            src={src}
             alt="Ad creative"
             loading="lazy"
-            style={{ width: 160, height: 160, objectFit: 'cover', border: '1px solid #e5e7eb', display: 'block' }}
+            style={{ width: 200, height: 200, objectFit: 'contain', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', display: 'block' }}
           />
         );
       },
@@ -204,6 +206,7 @@ export default function MetaPage() {
   const [videoWatch,       setVideoWatch]       = useState<VideoWatchResult>({ videoViews: 0, funnel: [] });
   const [targeting,        setTargeting]        = useState<TargetingRow[]>([]);
   const [devicesData,      setDevicesData]      = useState<DevicesResult>({ devices: [], placements: [] });
+  const [dowData,          setDowData]          = useState<DayOfWeekRow[]>([]);
   const [fallbackActive,   setFallbackActive]   = useState(false);
   const [bannerDismissed,  setBannerDismissed]  = useState(readBannerDismissed);
 
@@ -242,11 +245,12 @@ export default function MetaPage() {
   // hangs it can't hold up engagement/video/devices.
   const fetchBelowFoldCb = useCallback(async (sd: string, ed: string, f: MetaFilters) => {
     try {
-      const [entities, engRows, videoRows, devRows] = await Promise.all([
+      const [entities, engRows, videoRows, devRows, dowRows] = await Promise.all([
         fetchEntityTables(sd, ed, f),
         fetchEngagement(sd, ed, f),
         fetchVideoWatch(sd, ed),
         fetchDevices(sd, ed),
+        fetchDayOfWeek(sd, ed),
       ]);
       setEntityCampaigns(entities.campaigns);
       setEntityAdsets(entities.adsets);
@@ -254,6 +258,7 @@ export default function MetaPage() {
       setEngagement(engRows);
       setVideoWatch(videoRows);
       setDevicesData(devRows);
+      setDowData(dowRows);
       // Targeting last — heaviest single query, independent state update.
       fetchTargeting(sd, ed, f).then(setTargeting).catch(console.error);
     } catch (e) { console.error(e); }
@@ -477,6 +482,42 @@ export default function MetaPage() {
       >
         Conversions = {META_CONVERSION_DEFINITION}
       </div>
+
+      {/* Top Performers — client-side pick from entityAds with noise floors so
+          a 1-impression ad can't take the top spot. Teal borders match the
+          scorecard visual language. */}
+      {entityAds.length > 0 && (() => {
+        const withImpr = entityAds.filter(a => a.impressions >= 500);
+        const withConv = entityAds.filter(a => (a.conversions ?? 0) >= 3);
+        const withReach = entityAds.filter(a => a.reach >= 500);
+        const bestCtr = withImpr.slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
+        const bestCpa = withConv.slice().sort((a, b) => (a.cost_per_conversion ?? Infinity) - (b.cost_per_conversion ?? Infinity))[0];
+        const bestCpc = withReach.slice().sort((a, b) => (a.cpc ?? Infinity) - (b.cpc ?? Infinity))[0];
+        const highlights: { label: string; value: string; ad: EntityRow | undefined }[] = [
+          { label: 'Best CTR (500+ impr)',    value: bestCtr ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                : '—', ad: bestCtr },
+          { label: 'Best CPA (3+ conv)',      value: bestCpa ? `$${(bestCpa.cost_per_conversion ?? 0).toFixed(2)}` : '—', ad: bestCpa },
+          { label: 'Cheapest CPC (500+ reach)', value: bestCpc ? `$${(bestCpc.cpc ?? 0).toFixed(2)}`               : '—', ad: bestCpc },
+        ];
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
+            {highlights.map(h => (
+              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card }}>
+                <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  {h.label}
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: typography.fontWeight.bold, color: colors.text.primary, fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+                  {h.value}
+                </div>
+                {h.ad && (
+                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={h.ad.name}>
+                    {h.ad.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* B2 sentinel: fires below-fold fetch when user scrolls near this point */}
       <div ref={setSentinelEl} aria-hidden style={{ height: 1 }} />
@@ -722,6 +763,34 @@ export default function MetaPage() {
             </div>
           )}
         </ChartContainer>
+
+        {dowData.some(d => d.spend > 0) && (
+          <ChartContainer title="Performance by Day of Week">
+            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              {(() => {
+                const maxSpend = Math.max(...dowData.map(d => d.spend));
+                return dowData.map(d => {
+                  const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
+                  return (
+                    <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                      <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                        {d.weekday}
+                      </div>
+                      <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                      </div>
+                      <div style={{ width: 220, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
+                        <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
+                        <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </ChartContainer>
+        )}
 
         <ChartContainer title="Targeting (per ad set)">
           <DailySummaryTable
