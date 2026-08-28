@@ -34,6 +34,7 @@ export function Nav() {
 
   return (
     <aside
+      className="app-sidebar"
       style={{
         width: SIDEBAR_WIDTH,
         flexShrink: 0,

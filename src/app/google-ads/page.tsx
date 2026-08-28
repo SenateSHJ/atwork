@@ -348,7 +348,7 @@ export default function GoogleAdsPage() {
       {/* ── Scorecards (9 tiles, 5-col grid) ── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(5, 160px)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: spacing.sm,
         justifyContent: 'center',
         marginBottom: spacing.xs,

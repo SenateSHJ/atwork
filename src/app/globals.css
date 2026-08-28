@@ -90,3 +90,33 @@
     @apply card p-4 border-dashed opacity-60;
   }
 }
+
+/* ── Responsive shell — sidebar collapses to a top bar on tablet + phone ── */
+@media (max-width: 900px) {
+  .app-sidebar {
+    position: relative !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    bottom: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    align-items: center;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+  }
+  .app-sidebar > * {
+    border-bottom: none !important;
+    padding: 8px 12px !important;
+    flex: 0 0 auto;
+  }
+  .app-main {
+    margin-left: 0 !important;
+  }
+  .app-shell {
+    flex-direction: column !important;
+  }
+}
+

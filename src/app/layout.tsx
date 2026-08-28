@@ -13,15 +13,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <div
+          className="app-shell"
           style={{
             display: 'flex',
             minHeight: '100vh',
-            minWidth: '1024px',
             fontFamily: typography.fontFamily.sans,
           }}
         >
           <Nav />
           <main
+            className="app-main"
             style={{
               marginLeft: '280px',
               flex: 1,

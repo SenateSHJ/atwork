@@ -387,7 +387,7 @@ export default function MetaPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 160px)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
           gap: spacing.sm,
           justifyContent: 'center',
           marginBottom: spacing.xs,
