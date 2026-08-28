@@ -67,7 +67,7 @@ function entityColumns(nameLabel: string, opts?: { withCampaign?: boolean; withA
 }
 
 // Campaign proximity — 1 row per radius ring per campaign.
-const PROXIMITY_COLUMNS: DSTColumn[] = [
+const _PROXIMITY_COLUMNS: DSTColumn[] = [
   { key: 'campaign',        label: 'Campaign',    align: 'left' },
   { key: 'campaign_status', label: 'Status',      align: 'left', render: r => String(r.campaign_status ?? '—') },
   { key: 'radius',          label: 'Radius',      numeric: true, render: r => `${Number(r.radius || 0).toFixed(1)} ${String(r.radius_units ?? '')}`.trim() },
@@ -110,7 +110,7 @@ export default function GoogleAdsPage() {
   const [entityAds,        setEntityAds]        = useState<GadsEntityRow[]>([]);
   const [entityKeywords,   setEntityKeywords]   = useState<GadsEntityRow[]>([]);
   const [entitySearchTerms,setEntitySearchTerms]= useState<GadsEntityRow[]>([]);
-  const [proximity,        setProximity]        = useState<GadsProximityRow[]>([]);
+  const [_proximity,       _setProximity]       = useState<GadsProximityRow[]>([]);
   const [fallbackActive,   setFallbackActive]   = useState(false);
   const [bannerDismissed,  setBannerDismissed]  = useState(readBannerDismissed);
 
@@ -144,7 +144,7 @@ export default function GoogleAdsPage() {
       setEntityAds(entities.ads);
       setEntityKeywords(entities.keywords);
       setEntitySearchTerms(entities.searchTerms);
-      setProximity(targeting.proximity);
+      _setProximity(targeting.proximity);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -319,6 +319,32 @@ export default function GoogleAdsPage() {
         </button>
       </div>
 
+      {/* ── Inactive-account banner ────────────────────────────────
+          Shows when totals are all zero — the atWork Google Ads
+          account has been marked Inactive in Weld since Apr 2024;
+          no recent stats will land until it's reactivated. Once
+          the account starts flowing again the banner auto-hides.
+      */}
+      {(t && t.spend_aud === 0 && t.impressions === 0 && t.clicks === 0) && (
+        <div style={{
+          border: `1px solid ${colors.brand.secondary}`,
+          backgroundColor: colors.brand.secondaryFaint,
+          color: colors.text.primary,
+          padding: `${spacing.md} ${spacing.lg}`,
+          marginBottom: spacing.lg,
+          borderRadius: 0,
+          fontSize: typography.fontSize.sm,
+          lineHeight: 1.5,
+        }}>
+          <div style={{ fontWeight: typography.fontWeight.semibold, marginBottom: 4 }}>
+            Google Ads account is inactive
+          </div>
+          <div style={{ color: colors.text.secondary }}>
+            The atWork Google Ads account stopped delivering ads on 2024-04-08 and is marked Inactive in Weld. Campaign / ad-group / keyword dimensions are still synced (visible below) but no new stats will land until the account is reactivated in Google Ads.
+          </div>
+        </div>
+      )}
+
       {/* ── Scorecards (9 tiles, 5-col grid) ── */}
       <div style={{
         display: 'grid',
@@ -390,17 +416,6 @@ export default function GoogleAdsPage() {
             initialSort={{ key: 'spend', direction: 'desc' }}
             autoHeight
           />
-        </ChartContainer>
-
-        <ChartContainer title="Campaign Proximity Targeting">
-          <DailySummaryTable
-            data={proximity as unknown as DailyRow[]}
-            columns={PROXIMITY_COLUMNS}
-            sortable
-            initialSort={{ key: 'radius', direction: 'desc' }}
-            autoHeight
-          />
-          {proximity.length === 0 && searchPausedNote}
         </ChartContainer>
 
         <ChartContainer title="Ad Groups">
