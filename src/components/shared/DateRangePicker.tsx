@@ -10,8 +10,8 @@ interface DateRangePickerProps {
 
 // atWork brand accent (was BFT teal). Constant name kept so the rest of the
 // BFT-cloned styling continues to reference a single value.
-const TEAL = '#E8752A';        // colors.brand.primary
-const TEAL_HOVER = '#C15E1F';  // colors.brand.primaryDark
+const TEAL = '#218b95';        // colors.brand.primary
+const TEAL_HOVER = '#1a6e78';  // colors.brand.primaryDark
 
 function toIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

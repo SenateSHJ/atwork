@@ -6,31 +6,35 @@
 
 export const colors = {
   brand: {
-    // atWork accent (orange)
-    primary:      '#E8752A',
-    primaryDark:  '#C15E1F',
-    primaryFaint: '#FBEDD8',
+    // atWork website brand teal
+    primary:      '#218b95',
+    primaryDark:  '#1a6e78',   // hover / active teal
+    primaryFaint: '#d4ecf0',   // pale teal for tinted backgrounds
     primaryText:  '#FFFFFF',
+    // atWork website accent — yellow-green (used sparingly: chart series, badges)
+    secondary:      '#ccd404',
+    secondaryDark:  '#a3a903',
+    secondaryFaint: '#f5f7cc',
   },
 
   text: {
-    primary:   '#013E51',   // atWork ink — headings, body
+    primary:   '#013E51',   // atWork ink — headings, body (deep teal reads well on white)
     secondary: '#5A6E75',   // muted
     disabled:  '#9CA3AF',
     inverse:   '#FFFFFF',
   },
 
   background: {
-    page:    '#F2E8DA',   // atWork sand
+    page:    '#FFFFFF',   // main page background — white
     panel:   '#F9FAFB',
     card:    '#FFFFFF',
     overlay: 'rgba(0, 0, 0, 0.4)',
   },
 
   border: {
-    default: '#DDD5C8',   // atWork sand-derived border
-    strong:  '#C4B99E',
-    focus:   '#E8752A',   // matches brand.primary
+    default: '#E5E7EB',   // neutral gray (works on white bg)
+    strong:  '#D1D5DB',
+    focus:   '#218b95',   // matches brand.primary
   },
 
   status: {
@@ -45,31 +49,31 @@ export const colors = {
   },
 
   table: {
-    rowAlt:   '#FAF6EE',   // sand-lightened
-    rowHover: '#F2E8DA',
+    rowAlt:   '#F9FAFB',   // very light gray zebra on white
+    rowHover: '#F3F4F6',
   },
 
   ui: {
-    // Scorecard blue-variant background — atWork ink (deep, high-contrast)
+    // Scorecard dark-variant background — atWork ink (deep, high-contrast)
     teal:    '#013E51',
-    // Filter button / active state — atWork accent
-    tealAlt: '#E8752A',
-    // Card borders + chart header bars — kept black for the same weight BFT uses
+    // Filter button / active state — atWork brand teal
+    tealAlt: '#218b95',
+    // Card borders + chart header bars
     black:   '#013E51',
   },
 
   chart: [
-    '#013E51',   // atWork ink   — primary series
-    '#E8752A',   // atWork accent — second series
-    '#A8D5E2',   // atWork sky   — third series
-    '#10B981',   // emerald      — fourth series
-    '#F59E0B',   // amber        — fifth series
+    '#218b95',   // atWork teal   — primary series
+    '#ccd404',   // atWork accent — second series
+    '#013E51',   // atWork ink    — third series
+    '#10B981',   // emerald       — fourth series
+    '#F59E0B',   // amber         — fifth series
   ] as const,
 
   chartDark: [
+    '#1a6e78',
+    '#a3a903',
     '#001F2A',
-    '#C15E1F',
-    '#7BB4C2',
     '#059669',
     '#D97706',
   ] as const,

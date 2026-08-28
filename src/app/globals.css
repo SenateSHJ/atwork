@@ -4,19 +4,19 @@
 
 :root {
   /* atWork brand tokens — RGB channels so Tailwind opacity modifiers work */
-  --brand-ink:    1 62 81;      /* #013E51 — headings, nav, primary chart series */
-  --brand-accent: 232 117 42;   /* #E8752A — buttons, active states */
-  --brand-sand:   242 232 218;  /* #F2E8DA — page background, table zebra */
-  --brand-sky:    168 213 226;  /* #A8D5E2 — secondary series, tags */
+  --brand-ink:    1 62 81;      /* #013E51 — headings, nav, deep ink */
+  --brand-accent: 33 139 149;   /* #218b95 — buttons, active states (atWork teal) */
+  --brand-sand:   255 255 255;  /* white — page background */
+  --brand-sky:    204 212 4;    /* #ccd404 — secondary accent (atWork yellow-green) */
 
   --bg-card:      #ffffff;
   --text-muted:   #5a6e75;
-  --border:       #ddd5c8;
+  --border:       #e5e7eb;
 }
 
 @layer base {
   body {
-    @apply bg-sand text-ink;
+    @apply bg-white text-ink;
     font-family: Inter, system-ui, sans-serif;
   }
 
@@ -58,7 +58,7 @@
 
   .table-header {
     @apply text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]
-           bg-sand/60 px-4 py-3 text-left;
+           bg-white px-4 py-3 text-left;
   }
 
   .table-cell {
