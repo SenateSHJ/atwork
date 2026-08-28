@@ -58,6 +58,8 @@ export interface TrendRow {
 // both — creative rows carry `campaign_name` as the parent link.
 export interface EntityRow {
   name:              string;
+  post_text?:        string | null;   // Creatives table only — ad copy
+  landing_url?:      string | null;   // Creatives table only — click destination
   campaign_name?:    string | null;   // Creatives table only
   objective?:        string | null;
   spend:             number;
@@ -130,6 +132,8 @@ type CreativeDim = {
   id: string;
   campaign_id: string | null;
   name: string | null;
+  post_text: string | null;
+  landing_url: string | null;
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -161,7 +165,7 @@ async function loadCampaignDim(): Promise<CampaignDim[]> {
 async function loadCreativeDim(): Promise<CreativeDim[]> {
   const sb = supabaseServer();
   const { data } = await sb.schema('bronze').from('linkedin_creative')
-    .select('id,campaign_id,name');
+    .select('id,campaign_id,name,post_text,landing_url');
   return (data ?? []) as CreativeDim[];
 }
 
@@ -424,6 +428,8 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
       const parentId = dim?.campaign_id ?? '';
       return {
         name,
+        post_text:           dim?.post_text ?? null,
+        landing_url:         dim?.landing_url ?? null,
         campaign_name:       parentId ? (idToName.get(parentId) ?? null) : null,
         objective:           parentId ? (idToObj.get(parentId) ?? null) : null,
         spend:               c.spend,

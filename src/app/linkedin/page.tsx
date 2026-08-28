@@ -65,12 +65,25 @@ const fmtDate  = (v: unknown) =>
 
 // Entity table column config — the two group-by options share this shape,
 // with the "Campaign" parent link inserted only for creatives.
-function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean; withObjective?: boolean }): DSTColumn[] {
+function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean; withObjective?: boolean; withAdCopy?: boolean }): DSTColumn[] {
   const cols: DSTColumn[] = [
     { key: 'name', label: nameLabel, align: 'left' },
   ];
   if (opts?.withParentCampaign) {
     cols.push({ key: 'campaign_name', label: 'Campaign', align: 'left', render: r => String(r.campaign_name ?? '—') });
+  }
+  if (opts?.withAdCopy) {
+    cols.push({
+      key: 'post_text',
+      label: 'Ad Copy',
+      align: 'left',
+      render: r => {
+        const t = r.post_text as string | null | undefined;
+        if (!t) return '—';
+        const short = t.length > 140 ? t.slice(0, 140).trim() + '…' : t;
+        return short;
+      },
+    });
   }
   if (opts?.withObjective) {
     cols.push({ key: 'objective', label: 'Objective', align: 'left', render: r => String(r.objective ?? '—') });
@@ -449,7 +462,7 @@ export default function LinkedinPage() {
                   <>
                     <DailySummaryTable
                       data={visibleEntityAds as unknown as Record<string, unknown>[]}
-                      columns={entityColumns('Creative', { withParentCampaign: true })}
+                      columns={entityColumns('Creative', { withParentCampaign: true, withAdCopy: true })}
                       sortable
                       initialSort={{ key: 'spend', direction: 'desc' }}
                       paginate={20}

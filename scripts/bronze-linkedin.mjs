@@ -116,16 +116,26 @@ console.log(`  ✓ ${nCampaigns} campaign rows upserted`)
 // content_reference / title (which may itself be sparse). We fall back to
 // title if present, else null (silver.linkedin_ads shows creative_id as label).
 
-console.log('Fetching creative...')
+console.log('Fetching creative + joined post...')
 const creatives = bq(`
-  SELECT id, campaign_id, title AS name, _weld_synced AS bq_synced
-  FROM \`${PROJECT}.${DATASET}.creative\`
+  SELECT
+    c.id                                              AS id,
+    c.campaign_id                                     AS campaign_id,
+    c.title                                           AS name,
+    p.commentary                                      AS post_text,
+    p.contentLandingPage                              AS landing_url,
+    c._weld_synced                                    AS bq_synced
+  FROM \`${PROJECT}.${DATASET}.creative\` c
+  LEFT JOIN \`${PROJECT}.${DATASET}.post\` p
+    ON p.id = REGEXP_EXTRACT(c.content_reference, r'([0-9]+)$')
 `, 'creative')
 console.log(`  ${creatives.length} rows from BQ`)
 const nCreatives = await upsert('linkedin_creative', creatives.map(r => ({
   id:          r.id,
   campaign_id: r.campaign_id,
   name:        r.name,
+  post_text:   r.post_text,
+  landing_url: r.landing_url,
   bq_synced:   r.bq_synced || null,
 })), 'id')
 console.log(`  ✓ ${nCreatives} creative rows upserted`)
