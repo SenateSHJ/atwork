@@ -319,9 +319,9 @@ export default function Ga4Page() {
       </div>
 
       {/* ── Scorecards — 12 tiles, 2 rows of 6 ── */}
-      <div style={{
+      <div className="scorecard-grid" style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gridTemplateColumns: 'repeat(6, 160px)',
         gap: spacing.sm,
         justifyContent: 'center',
         marginBottom: spacing.lg,

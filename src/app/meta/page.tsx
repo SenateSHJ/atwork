@@ -385,9 +385,10 @@ export default function MetaPage() {
 
       {/* ── Blue scorecards (atWork roster: summed range totals + ratios) ── */}
       <div
+        className=\"scorecard-grid\"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gridTemplateColumns: 'repeat(5, 160px)',
           gap: spacing.sm,
           justifyContent: 'center',
           marginBottom: spacing.xs,

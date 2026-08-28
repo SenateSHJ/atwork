@@ -91,7 +91,8 @@
   }
 }
 
-/* ── Responsive shell — sidebar collapses to a top bar on tablet + phone ── */
+/* ── Responsive shell — sidebar collapses to a top bar on tablet + phone.
+      Desktop (>900px) is UNCHANGED — original inline layout wins.       ── */
 @media (max-width: 900px) {
   .app-sidebar {
     position: relative !important;
@@ -117,6 +118,12 @@
   }
   .app-shell {
     flex-direction: column !important;
+  }
+  /* Only at narrow widths does the scorecard grid reflow to auto-fit.
+     Above 900px the fixed pixel columns from the inline style win. */
+  .scorecard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    justify-content: stretch !important;
   }
 }
 
