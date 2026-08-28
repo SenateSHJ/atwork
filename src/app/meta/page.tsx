@@ -71,14 +71,33 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
       label: 'Preview',
       align: 'left',
       render: r => {
-        // Prefer the high-res image_url; fall back to thumbnail_url when
-        // the ad is video-only (video creatives rarely have image_url).
-        const src = (r.image_url as string | null | undefined) ?? (r.thumbnail_url as string | null | undefined);
-        if (!src) return '—';
+        // Best available preview, in order of quality:
+        //   1. Facebook post embed iframe — shows the actual video ad at real
+        //      resolution. Requires effective_object_story_id (page_id_post_id).
+        //   2. High-res image_url from Meta creative (image ads only).
+        //   3. thumbnail_url (last resort — usually 64px, pixelated).
+        const story = r.effective_object_story_id as string | null | undefined;
+        if (story && story.includes('_')) {
+          const [pageId, postId] = story.split('_');
+          const href = `https://www.facebook.com/${pageId}/posts/${postId}`;
+          const src = `https://www.facebook.com/plugins/post.php?href=${encodeURIComponent(href)}&show_text=false&width=280`;
+          return (
+            <iframe
+              src={src}
+              loading="lazy"
+              style={{ width: 280, height: 320, border: '1px solid #e5e7eb', display: 'block' }}
+              title="Facebook ad preview"
+              allow="autoplay; encrypted-media; picture-in-picture; web-share"
+              scrolling="no"
+            />
+          );
+        }
+        const img = (r.image_url as string | null | undefined) ?? (r.thumbnail_url as string | null | undefined);
+        if (!img) return '—';
         return (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={src}
+            src={img}
             alt="Ad creative"
             loading="lazy"
             style={{ width: 200, height: 200, objectFit: 'contain', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', display: 'block' }}
