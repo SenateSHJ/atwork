@@ -86,8 +86,8 @@ function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean;
             src={src}
             loading="lazy"
             style={{
-              width: 340,
-              height: 320,
+              width: 220,
+              height: 200,
               border: '1px solid #e5e7eb',
               borderRadius: 0,
               display: 'block',

@@ -130,12 +130,16 @@ export function DailySummaryTable({
     //     text; hover shows full value via the title attribute
     //   - the outer wrapper allows horizontal scroll if a table ever grows
     //     wider than its container (dormant on current data)
-    const DIM_MAX_WIDTH = 260;
+    // Dimension cells now wrap so long text stays visible instead of being
+    // ellipsis-cut. Cap width so a single very long value can't blow out
+    // the whole column. verticalAlign top keeps multi-line rows aligned to
+    // the header baseline when neighbouring cells are single-line.
+    const DIM_MAX_WIDTH = 320;
     const dimCell: React.CSSProperties = {
       maxWidth: DIM_MAX_WIDTH,
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      verticalAlign: 'top',
     };
 
     // Extract full text of a cell for the hover title attribute — used on
