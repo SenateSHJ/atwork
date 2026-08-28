@@ -136,6 +136,8 @@ export default function MetaPage() {
   const [entityCampaigns,  setEntityCampaigns]  = useState<EntityRow[]>([]);
   const [entityAdsets,     setEntityAdsets]     = useState<EntityRow[]>([]);
   const [entityAds,        setEntityAds]        = useState<EntityRow[]>([]);
+  type MetaGroupBy = 'campaigns' | 'adsets' | 'ads';
+  const [metaGroupBy, setMetaGroupBy] = useState<MetaGroupBy>('campaigns');
   const [engagement,       setEngagement]       = useState<EngagementRow[]>([]);
   const [videoWatch,       setVideoWatch]       = useState<VideoWatchResult>({ videoViews: 0, funnel: [] });
   const [targeting,        setTargeting]        = useState<TargetingRow[]>([]);
@@ -437,44 +439,87 @@ export default function MetaPage() {
           />
         </ChartContainer>
 
-        <ChartContainer title="Campaigns">
-          <DailySummaryTable
-            data={entityCampaigns as unknown as DailyRow[]}
-            columns={entityColumns('Campaign', { withObjective: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Ad Sets">
-          <DailySummaryTable
-            data={entityAdsets as unknown as DailyRow[]}
-            columns={entityColumns('Ad Set')}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Ads">
-          <DailySummaryTable
-            data={visibleEntityAds as unknown as DailyRow[]}
-            columns={entityColumns('Ad Name', { withMediaType: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
-          {hiddenAdsCount > 0 && (
-            <div style={{
-              marginTop: spacing.sm,
-              textAlign: 'right',
-              fontSize: typography.fontSize.xs,
-              color: colors.text.secondary,
-            }}>
-              {hiddenAdsCount} ad{hiddenAdsCount === 1 ? '' : 's'} hidden — spend below ${ADS_SPEND_THRESHOLD} over the selected range.
-            </div>
-          )}
+        {/* One consolidated grouped table — replaces the previous 3 standalone
+            tables (Campaigns, Ad Sets, Ads). Group By dropdown swaps the data
+            + entity column config. Defaults to Campaigns. Mirrors the Snainton
+            SalesPage.tsx pattern. */}
+        <ChartContainer title="Performance">
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>Group by:</span>
+            {([
+              { key: 'campaigns', label: 'Campaigns' },
+              { key: 'adsets',    label: 'Ad Sets'   },
+              { key: 'ads',       label: 'Ads'       },
+            ] as { key: MetaGroupBy; label: string }[]).map(opt => {
+              const active = metaGroupBy === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setMetaGroupBy(opt.key)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    fontFamily: typography.fontFamily.sans,
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? colors.brand.primary : '#d1d5db'}`,
+                    backgroundColor: active ? colors.brand.primary : '#fff',
+                    color: active ? '#fff' : colors.text.primary,
+                    borderRadius: 6,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {(() => {
+            switch (metaGroupBy) {
+              case 'adsets':
+                return (
+                  <DailySummaryTable
+                    data={entityAdsets as unknown as DailyRow[]}
+                    columns={entityColumns('Ad Set')}
+                    sortable
+                    initialSort={{ key: 'spend', direction: 'desc' }}
+                    autoHeight
+                  />
+                );
+              case 'ads':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={visibleEntityAds as unknown as DailyRow[]}
+                      columns={entityColumns('Ad Name', { withMediaType: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      autoHeight
+                    />
+                    {hiddenAdsCount > 0 && (
+                      <div style={{
+                        marginTop: spacing.sm,
+                        textAlign: 'right',
+                        fontSize: typography.fontSize.xs,
+                        color: colors.text.secondary,
+                      }}>
+                        {hiddenAdsCount} ad{hiddenAdsCount === 1 ? '' : 's'} hidden — spend below ${ADS_SPEND_THRESHOLD} over the selected range.
+                      </div>
+                    )}
+                  </>
+                );
+              case 'campaigns':
+              default:
+                return (
+                  <DailySummaryTable
+                    data={entityCampaigns as unknown as DailyRow[]}
+                    columns={entityColumns('Campaign', { withObjective: true })}
+                    sortable
+                    initialSort={{ key: 'spend', direction: 'desc' }}
+                    autoHeight
+                  />
+                );
+            }
+          })()}
         </ChartContainer>
 
         <ChartContainer title="Engagement (per ad)">
