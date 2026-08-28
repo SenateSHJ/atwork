@@ -134,6 +134,7 @@ type CreativeDim = {
   name: string | null;
   post_text: string | null;
   landing_url: string | null;
+  media_title: string | null;
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -165,7 +166,7 @@ async function loadCampaignDim(): Promise<CampaignDim[]> {
 async function loadCreativeDim(): Promise<CreativeDim[]> {
   const sb = supabaseServer();
   const { data } = await sb.schema('bronze').from('linkedin_creative')
-    .select('id,campaign_id,name,post_text,landing_url');
+    .select('id,campaign_id,name,post_text,landing_url,media_title');
   return (data ?? []) as CreativeDim[];
 }
 
@@ -424,7 +425,10 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Lin
       const dim = creIdToDim.get(c.creative_id);
       // LinkedIn's `creative.title` is often null — fall back to the id so the
       // row is at least identifiable in the table.
-      const name = dim?.name ?? `Creative ${c.creative_id}`;
+      // Fallback chain for a human-readable creative label:
+      //   creative.title (rarely set) → media_content.title (video/media title)
+      //   → the raw creative ID
+      const name = dim?.name ?? dim?.media_title ?? `Creative ${c.creative_id}`;
       const parentId = dim?.campaign_id ?? '';
       return {
         name,
