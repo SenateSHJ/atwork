@@ -6,17 +6,19 @@ import { cached } from '@/lib/cache';
 // ─── Shared row/response shapes ────────────────────────────────────────────
 
 export interface Totals {
-  spend:             number;
-  impressions:       number;
-  clicks:            number;
-  reach:             number;
-  ctr:               number | null;
-  cpc:               number | null;
-  cpm:               number | null;
-  engagements:       number;
-  video_views:       number;
-  leads:             number;
-  cost_per_lead:     number | null;
+  spend:                  number;
+  impressions:            number;
+  clicks:                 number;
+  reach:                  number;
+  ctr:                    number | null;
+  cpc:                    number | null;
+  cpm:                    number | null;
+  engagements:            number;
+  video_views:            number;
+  video_completions:      number;
+  video_completion_rate:  number | null;
+  leads:                  number;
+  cost_per_lead:          number | null;
 }
 
 export interface DailyRow {
@@ -30,6 +32,7 @@ export interface DailyRow {
   cpm:               number | null;
   engagements:       number;
   video_views:       number;
+  video_completions: number;
   leads:             number;
   cost_per_lead:     number | null;
 }
@@ -158,19 +161,22 @@ function aggregateTotals(rows: CampaignStatRow[]): Totals {
   const reach       = rows.reduce((s, r) => s + Number(r.approximate_unique_impressions || 0), 0);
   const engagements = rows.reduce((s, r) => s + Number(r.total_engagements              || 0), 0);
   const videoViews  = rows.reduce((s, r) => s + Number(r.video_views                    || 0), 0);
+  const videoCompl  = rows.reduce((s, r) => s + Number(r.video_completions              || 0), 0);
   const leads       = rows.reduce((s, r) => s + Number(r.one_click_leads                || 0), 0);
   return {
     spend,
     impressions,
     clicks,
     reach,
-    ctr:           impressions ? (clicks / impressions) * 100 : null,
-    cpc:           clicks      ? spend / clicks               : null,
-    cpm:           impressions ? (spend / impressions) * 1000 : null,
+    ctr:                   impressions ? (clicks / impressions) * 100 : null,
+    cpc:                   clicks      ? spend / clicks               : null,
+    cpm:                   impressions ? (spend / impressions) * 1000 : null,
     engagements,
-    video_views:   videoViews,
+    video_views:           videoViews,
+    video_completions:     videoCompl,
+    video_completion_rate: videoViews  ? (videoCompl / videoViews) * 100 : null,
     leads,
-    cost_per_lead: leads       ? spend / leads                : null,
+    cost_per_lead:         leads       ? spend / leads                : null,
   };
 }
 
@@ -178,21 +184,22 @@ function aggregateTotals(rows: CampaignStatRow[]): Totals {
 function rollDaily(rows: CampaignStatRow[]): DailyRow[] {
   const map = new Map<string, {
     date: string; spend: number; impressions: number; clicks: number; reach: number;
-    engagements: number; video_views: number; leads: number;
+    engagements: number; video_views: number; video_completions: number; leads: number;
   }>();
   for (const r of rows) {
     const k = r.date;
     const cur = map.get(k) ?? {
       date: k, spend: 0, impressions: 0, clicks: 0, reach: 0,
-      engagements: 0, video_views: 0, leads: 0,
+      engagements: 0, video_views: 0, video_completions: 0, leads: 0,
     };
-    cur.spend       += Number(r.cost                           || 0);
-    cur.impressions += Number(r.impressions                    || 0);
-    cur.clicks      += Number(r.clicks                         || 0);
-    cur.reach       += Number(r.approximate_unique_impressions || 0);
-    cur.engagements += Number(r.total_engagements              || 0);
-    cur.video_views += Number(r.video_views                    || 0);
-    cur.leads       += Number(r.one_click_leads                || 0);
+    cur.spend             += Number(r.cost                           || 0);
+    cur.impressions       += Number(r.impressions                    || 0);
+    cur.clicks            += Number(r.clicks                         || 0);
+    cur.reach             += Number(r.approximate_unique_impressions || 0);
+    cur.engagements       += Number(r.total_engagements              || 0);
+    cur.video_views       += Number(r.video_views                    || 0);
+    cur.video_completions += Number(r.video_completions              || 0);
+    cur.leads             += Number(r.one_click_leads                || 0);
     map.set(k, cur);
   }
   return [...map.values()]

@@ -180,16 +180,16 @@ export default function LinkedinPage() {
 
   // Sparklines — one series per tile, null→0 fallback.
   const spark = useMemo(() => ({
-    spend:       dailyRows.map(d => d.spend       ?? 0),
-    impressions: dailyRows.map(d => d.impressions ?? 0),
-    clicks:      dailyRows.map(d => d.clicks      ?? 0),
-    reach:       dailyRows.map(d => d.reach       ?? 0),
-    ctr:         dailyRows.map(d => d.ctr         ?? 0),
-    cpc:         dailyRows.map(d => d.cpc         ?? 0),
-    cpm:         dailyRows.map(d => d.cpm         ?? 0),
-    engagements: dailyRows.map(d => d.engagements ?? 0),
-    videoViews:  dailyRows.map(d => d.video_views ?? 0),
-    leads:       dailyRows.map(d => d.leads       ?? 0),
+    spend:            dailyRows.map(d => d.spend             ?? 0),
+    impressions:      dailyRows.map(d => d.impressions       ?? 0),
+    clicks:           dailyRows.map(d => d.clicks            ?? 0),
+    ctr:              dailyRows.map(d => d.ctr               ?? 0),
+    cpc:              dailyRows.map(d => d.cpc               ?? 0),
+    cpm:              dailyRows.map(d => d.cpm               ?? 0),
+    engagements:      dailyRows.map(d => d.engagements       ?? 0),
+    videoViews:       dailyRows.map(d => d.video_views       ?? 0),
+    videoCompletions: dailyRows.map(d => (d.video_completions ?? 0)),
+    completionRate:   dailyRows.map(d => (d.video_views ? ((d.video_completions ?? 0) / d.video_views) * 100 : 0)),
   }), [dailyRows]);
 
   // Daily Summary totals row — sums over the full range.
@@ -319,16 +319,16 @@ export default function LinkedinPage() {
           marginBottom: spacing.lg,
         }}
       >
-        <BFScorecard title="Spend"        value={fmtMoney(t?.spend         ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" />
-        <BFScorecard title="Impressions"  value={fmtInt(t?.impressions     ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" />
-        <BFScorecard title="Clicks"       value={fmtInt(t?.clicks          ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" />
-        <BFScorecard title="Reach"        value={fmtInt(t?.reach           ?? 0)}    sparklineData={spark.reach}       color="blue" size="small" />
-        <BFScorecard title="CTR"          value={fmtCtr(t?.ctr             ?? null)} sparklineData={spark.ctr}         color="blue" size="small" />
-        <BFScorecard title="CPC"          value={fmtMoney(t?.cpc           ?? null)} sparklineData={spark.cpc}         color="blue" size="small" />
-        <BFScorecard title="CPM"          value={fmtMoney(t?.cpm           ?? null)} sparklineData={spark.cpm}         color="blue" size="small" />
-        <BFScorecard title="Engagements"  value={fmtInt(t?.engagements     ?? 0)}    sparklineData={spark.engagements} color="blue" size="small" />
-        <BFScorecard title="Video Views"  value={fmtInt(t?.video_views     ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" />
-        <BFScorecard title="Leads"        value={fmtInt(t?.leads           ?? 0)}    sparklineData={spark.leads}       color="blue" size="small" />
+        <BFScorecard title="Spend"          value={fmtMoney(t?.spend         ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" />
+        <BFScorecard title="Impressions"    value={fmtInt(t?.impressions     ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" />
+        <BFScorecard title="Clicks"         value={fmtInt(t?.clicks          ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" />
+        <BFScorecard title="CTR"            value={fmtCtr(t?.ctr             ?? null)} sparklineData={spark.ctr}         color="blue" size="small" />
+        <BFScorecard title="CPC"            value={fmtMoney(t?.cpc           ?? null)} sparklineData={spark.cpc}         color="blue" size="small" />
+        <BFScorecard title="CPM"            value={fmtMoney(t?.cpm           ?? null)} sparklineData={spark.cpm}         color="blue" size="small" />
+        <BFScorecard title="Engagements"    value={fmtInt(t?.engagements     ?? 0)}    sparklineData={spark.engagements} color="blue" size="small" />
+        <BFScorecard title="Video Views"    value={fmtInt(t?.video_views     ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" />
+        <BFScorecard title="Video Compl."   value={fmtInt(t?.video_completions ?? 0)}  sparklineData={spark.videoCompletions} color="blue" size="small" />
+        <BFScorecard title="Compl. Rate"    value={fmtCtr(t?.video_completion_rate ?? null)} sparklineData={spark.completionRate} color="blue" size="small" />
       </div>
 
       {/* B2 sentinel: fires below-fold entity table fetch when user scrolls near this point */}
