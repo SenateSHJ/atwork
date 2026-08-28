@@ -414,8 +414,8 @@ export default function GoogleAdsPage() {
             columns={entityColumns('Campaign')}
             sortable
             initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
+            paginate={20}
+            />
         </ChartContainer>
 
         <ChartContainer title="Ad Groups">
@@ -424,8 +424,8 @@ export default function GoogleAdsPage() {
             columns={entityColumns('Ad Group', { withCampaign: true })}
             sortable
             initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
+            paginate={20}
+            />
           {entityAdGroups.length === 0 && searchPausedNote}
         </ChartContainer>
 
@@ -435,8 +435,8 @@ export default function GoogleAdsPage() {
             columns={entityColumns('Asset Group', { withCampaign: true })}
             sortable
             initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
+            paginate={20}
+            />
           {assetGroupsNote}
         </ChartContainer>
 
@@ -446,8 +446,8 @@ export default function GoogleAdsPage() {
             columns={entityColumns('Ad', { withAdGroup: true, withCampaign: true })}
             sortable
             initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
+            paginate={20}
+            />
           {entityAds.length === 0 && searchPausedNote}
         </ChartContainer>
 
@@ -479,8 +479,8 @@ export default function GoogleAdsPage() {
             columns={entityColumns('Audience', { withCampaign: true })}
             sortable
             initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
+            paginate={20}
+            />
           {audienceNote}
         </ChartContainer>
 

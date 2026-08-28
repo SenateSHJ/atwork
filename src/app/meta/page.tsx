@@ -498,8 +498,8 @@ export default function MetaPage() {
                     columns={entityColumns('Ad Set')}
                     sortable
                     initialSort={{ key: 'spend', direction: 'desc' }}
-                    autoHeight
-                  />
+                    paginate={20}
+            />
                 );
               case 'ads':
                 return (
@@ -509,8 +509,8 @@ export default function MetaPage() {
                       columns={entityColumns('Ad Name', { withMediaType: true })}
                       sortable
                       initialSort={{ key: 'spend', direction: 'desc' }}
-                      autoHeight
-                    />
+                      paginate={20}
+            />
                     {hiddenAdsCount > 0 && (
                       <div style={{
                         marginTop: spacing.sm,
@@ -531,8 +531,8 @@ export default function MetaPage() {
                     columns={entityColumns('Campaign', { withObjective: true })}
                     sortable
                     initialSort={{ key: 'spend', direction: 'desc' }}
-                    autoHeight
-                  />
+                    paginate={20}
+            />
                 );
             }
           })()}
@@ -544,8 +544,8 @@ export default function MetaPage() {
             columns={ENGAGEMENT_COLUMNS}
             sortable
             initialSort={{ key: 'post_engagement', direction: 'desc' }}
-            autoHeight
-          />
+            paginate={20}
+            />
           {hiddenEngagementCount > 0 && (
             <div style={{
               marginTop: spacing.sm,
@@ -582,6 +582,7 @@ export default function MetaPage() {
             <DailySummaryTable
               data={videoWatch.funnel as unknown as DailyRow[]}
               columns={VIDEO_WATCH_COLUMNS}
+              paginate={20}
             />
           </div>
         </ChartContainer>
@@ -592,8 +593,8 @@ export default function MetaPage() {
             columns={TARGETING_COLUMNS}
             sortable
             initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
+            paginate={20}
+            />
         </ChartContainer>
 
       </div>

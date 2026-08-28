@@ -257,7 +257,7 @@ async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: MetaFi
   // narrowed by whichever cascading filter is active. Same filter mask as
   // the entity tables so the top-of-page total agrees with per-entity sums.
   const convQuery = sb.schema('silver').from('meta_ad_conversion_insights')
-    .select('date,campaign_id,adset_id,ad_id,contact_website,video_view')
+    .select('date,campaign_id,adset_id,ad_id,lead,video_view')
     .gte('date', startDate).lte('date', endDate);
   const { data: convRows } = await convQuery;
   let convFiltered = convRows ?? [];
@@ -285,9 +285,9 @@ async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: MetaFi
     const passingCampIds = new Set(passingCamps.map(c => c.campaign_id));
     convFiltered = convFiltered.filter(r => passingCampIds.has((r as { campaign_id: string }).campaign_id));
   }
-  type ConvRow = { date: string; contact_website: number | null; video_view: number | null };
+  type ConvRow = { date: string; lead: number | null; video_view: number | null };
   const conversions = convFiltered.reduce(
-    (s, r) => s + Number((r as ConvRow).contact_website || 0), 0,
+    (s, r) => s + Number((r as ConvRow).lead || 0), 0,
   );
   const videoViews = convFiltered.reduce(
     (s, r) => s + Number((r as ConvRow).video_view || 0), 0,
@@ -298,7 +298,7 @@ async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: MetaFi
   const convByDate  = new Map<string, number>();
   const videoByDate = new Map<string, number>();
   for (const r of convFiltered as ConvRow[]) {
-    const cw = Number(r.contact_website || 0);
+    const cw = Number(r.lead || 0);
     const vv = Number(r.video_view      || 0);
     if (cw) convByDate.set (r.date, (convByDate.get (r.date) ?? 0) + cw);
     if (vv) videoByDate.set(r.date, (videoByDate.get(r.date) ?? 0) + vv);
@@ -387,7 +387,7 @@ export interface EntityRow {
   impressions:         number;
   clicks:              number;
   reach:               number;
-  conversions:         number;          // Meta-attributed website contact events (contact_website)
+  conversions:         number;          // Meta-attributed lead events (Meta pixel `lead` action_type)
   cost_per_conversion: number | null;
   video_views:         number;          // silver.meta_ad_conversion_insights.video_view
   ctr:                 number | null;
@@ -407,7 +407,7 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Met
     getMetaAdsets(range),
     getMetaAdsCreative(range),
     sb.schema('silver').from('meta_ad_conversion_insights')
-      .select('campaign_id,adset_id,ad_id,contact_website,video_view')
+      .select('campaign_id,adset_id,ad_id,lead,video_view')
       .gte('date', startDate).lte('date', endDate),
     sb.schema('silver').from('meta_campaign').select('campaign_id,objective'),
   ]);
@@ -448,9 +448,9 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Met
   const videoByCamp  = new Map<string, number>();
   const videoByAdset = new Map<string, number>();
   const videoByAd    = new Map<string, number>();
-  type ConvRow = { campaign_id: string; adset_id: string; ad_id: string; contact_website: number | null; video_view: number | null };
+  type ConvRow = { campaign_id: string; adset_id: string; ad_id: string; lead: number | null; video_view: number | null };
   for (const r of (convData.data ?? []) as ConvRow[]) {
-    const cw = Number(r.contact_website || 0);
+    const cw = Number(r.lead || 0);
     const vv = Number(r.video_view      || 0);
     if (cw) {
       convByCamp.set (r.campaign_id, (convByCamp.get (r.campaign_id) ?? 0) + cw);

@@ -401,7 +401,7 @@ export default function Ga4Page() {
             sortable
             initialSort={{ key: 'date', direction: 'desc' }}
             totalsRow={dailyTotals as unknown as Record<string, unknown>}
-            paginate={10}
+            paginate={20}
           />
         </ChartContainer>
 
@@ -411,7 +411,7 @@ export default function Ga4Page() {
             columns={TRAFFIC_COLUMNS}
             sortable
             initialSort={{ key: 'sessions', direction: 'desc' }}
-            autoHeight
+            paginate={20}
           />
         </ChartContainer>
 
@@ -431,7 +431,7 @@ export default function Ga4Page() {
             columns={TOP_PAGES_COLUMNS}
             sortable
             initialSort={{ key: 'page_views', direction: 'desc' }}
-            autoHeight
+            paginate={20}
           />
           {landingPagesNote}
         </ChartContainer>
@@ -452,7 +452,7 @@ export default function Ga4Page() {
             columns={LEAD_EVENT_COLUMNS}
             sortable
             initialSort={{ key: 'count', direction: 'desc' }}
-            autoHeight
+            paginate={20}
           />
         </ChartContainer>
 
@@ -464,7 +464,7 @@ export default function Ga4Page() {
               { key: 'users',   label: 'Users',   numeric: true, render: r => Number(r.users || 0).toLocaleString() },
               { key: 'sessions',label: 'Sessions',numeric: true, render: r => Number(r.sessions || 0).toLocaleString() },
             ]}
-            autoHeight
+            paginate={20}
           />
           {geographyNote}
         </ChartContainer>
