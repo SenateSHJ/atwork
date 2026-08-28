@@ -6,19 +6,26 @@ import { cached } from '@/lib/cache';
 // ─── Shared row/response shapes ────────────────────────────────────────────
 
 export interface Totals {
-  spend:                  number;
-  impressions:            number;
-  clicks:                 number;
-  reach:                  number;
-  ctr:                    number | null;
-  cpc:                    number | null;
-  cpm:                    number | null;
-  engagements:            number;
-  video_views:            number;
-  video_completions:      number;
-  video_completion_rate:  number | null;
-  leads:                  number;
-  cost_per_lead:          number | null;
+  spend:                    number;
+  impressions:              number;
+  clicks:                   number;
+  reach:                    number;
+  ctr:                      number | null;
+  cpc:                      number | null;
+  cpm:                      number | null;
+  engagements:              number;
+  video_views:              number;
+  video_completions:        number;
+  video_completion_rate:    number | null;
+  cost_per_video_view:      number | null;
+  cost_per_completion:      number | null;
+  fullscreen_plays:         number;
+  video_starts:             number;
+  video_q1:                 number;
+  video_mid:                number;
+  video_q3:                 number;
+  leads:                    number;
+  cost_per_lead:            number | null;
 }
 
 export interface DailyRow {
@@ -89,6 +96,11 @@ type CampaignStatRow = {
   landing_page_clicks: number | null;
   video_views: number | null;
   video_completions: number | null;
+  video_starts: number | null;
+  video_q1: number | null;
+  video_mid: number | null;
+  video_q3: number | null;
+  fullscreen_plays: number | null;
   reactions: number | null;
   comments: number | null;
   shares: number | null;
@@ -162,6 +174,11 @@ function aggregateTotals(rows: CampaignStatRow[]): Totals {
   const engagements = rows.reduce((s, r) => s + Number(r.total_engagements              || 0), 0);
   const videoViews  = rows.reduce((s, r) => s + Number(r.video_views                    || 0), 0);
   const videoCompl  = rows.reduce((s, r) => s + Number(r.video_completions              || 0), 0);
+  const videoStarts = rows.reduce((s, r) => s + Number(r.video_starts                   || 0), 0);
+  const videoQ1     = rows.reduce((s, r) => s + Number(r.video_q1                       || 0), 0);
+  const videoMid    = rows.reduce((s, r) => s + Number(r.video_mid                      || 0), 0);
+  const videoQ3     = rows.reduce((s, r) => s + Number(r.video_q3                       || 0), 0);
+  const fullscreen  = rows.reduce((s, r) => s + Number(r.fullscreen_plays               || 0), 0);
   const leads       = rows.reduce((s, r) => s + Number(r.one_click_leads                || 0), 0);
   return {
     spend,
@@ -175,6 +192,13 @@ function aggregateTotals(rows: CampaignStatRow[]): Totals {
     video_views:           videoViews,
     video_completions:     videoCompl,
     video_completion_rate: videoViews  ? (videoCompl / videoViews) * 100 : null,
+    cost_per_video_view:   videoViews  ? spend / videoViews : null,
+    cost_per_completion:   videoCompl  ? spend / videoCompl : null,
+    fullscreen_plays:      fullscreen,
+    video_starts:          videoStarts,
+    video_q1:              videoQ1,
+    video_mid:             videoMid,
+    video_q3:              videoQ3,
     leads,
     cost_per_lead:         leads       ? spend / leads                : null,
   };

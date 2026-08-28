@@ -308,12 +308,12 @@ export default function LinkedinPage() {
         </button>
       </div>
 
-      {/* ── Scorecards (10 tiles) ── */}
+      {/* ── Scorecards (12 tiles, 6-col grid) ── */}
       <div
         className="scorecard-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 160px)',
+          gridTemplateColumns: 'repeat(6, 160px)',
           gap: spacing.sm,
           justifyContent: 'center',
           marginBottom: spacing.lg,
@@ -325,10 +325,12 @@ export default function LinkedinPage() {
         <BFScorecard title="CTR"            value={fmtCtr(t?.ctr             ?? null)} sparklineData={spark.ctr}         color="blue" size="small" />
         <BFScorecard title="CPC"            value={fmtMoney(t?.cpc           ?? null)} sparklineData={spark.cpc}         color="blue" size="small" />
         <BFScorecard title="CPM"            value={fmtMoney(t?.cpm           ?? null)} sparklineData={spark.cpm}         color="blue" size="small" />
-        <BFScorecard title="Engagements"    value={fmtInt(t?.engagements     ?? 0)}    sparklineData={spark.engagements} color="blue" size="small" />
         <BFScorecard title="Video Views"    value={fmtInt(t?.video_views     ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" />
         <BFScorecard title="Video Compl."   value={fmtInt(t?.video_completions ?? 0)}  sparklineData={spark.videoCompletions} color="blue" size="small" />
         <BFScorecard title="Compl. Rate"    value={fmtCtr(t?.video_completion_rate ?? null)} sparklineData={spark.completionRate} color="blue" size="small" />
+        <BFScorecard title="Cost/View"      value={fmtMoney(t?.cost_per_video_view ?? null)} sparklineData={spark.videoViews}  color="blue" size="small" />
+        <BFScorecard title="Cost/Compl."    value={fmtMoney(t?.cost_per_completion ?? null)} sparklineData={spark.videoCompletions} color="blue" size="small" />
+        <BFScorecard title="Fullscreen"     value={fmtInt(t?.fullscreen_plays ?? 0)}   sparklineData={spark.videoCompletions} color="blue" size="small" />
       </div>
 
       {/* B2 sentinel: fires below-fold entity table fetch when user scrolls near this point */}
@@ -359,6 +361,44 @@ export default function LinkedinPage() {
             series={[{ key: 'ctr', label: 'CTR', color: colors.chart[3] }]}
           />
         </ChartContainer>
+
+        {/* Video Watch Funnel — full 6-step drop-off (Starts → 25% → 50% → 75% → Complete → Fullscreen).
+            LinkedIn-specific because atWork's LinkedIn spend is almost all video ads.
+            % column expresses share of Video Starts (funnel entry) — matches Meta's funnel semantics. */}
+        {t && t.video_starts > 0 && (
+          <ChartContainer title="Video Watch Funnel">
+            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              {(() => {
+                const starts = t.video_starts;
+                const steps: [string, number][] = [
+                  ['Video Starts', t.video_starts],
+                  ['25% Watched', t.video_q1],
+                  ['50% Watched', t.video_mid],
+                  ['75% Watched', t.video_q3],
+                  ['Completed',   t.video_completions],
+                  ['Fullscreen',  t.fullscreen_plays],
+                ];
+                return steps.map(([label, count]) => {
+                  const pct = starts > 0 ? (count / starts) * 100 : 0;
+                  return (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                      <div style={{ width: 130, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                        {label}
+                      </div>
+                      <div style={{ flex: 1, position: 'relative', height: 28, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                      </div>
+                      <div style={{ width: 140, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{fmtInt(count)}</span>
+                        <span style={{ color: colors.text.secondary }}>{pct.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </ChartContainer>
+        )}
 
         <ChartContainer title="Daily Summary">
           <DailySummaryTable
