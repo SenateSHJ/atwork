@@ -57,8 +57,9 @@ const th: React.CSSProperties = {
   padding: `10px ${spacing.sm}`,
   fontSize: typography.fontSize.sm,
   fontWeight: typography.fontWeight.semibold,
-  color: colors.text.secondary,
-  borderBottom: `1px solid ${colors.border.default}`,
+  color: colors.text.inverse,               // white on teal
+  backgroundColor: colors.ui.teal,          // atWork brand teal
+  borderBottom: `1px solid ${colors.ui.teal}`,
   whiteSpace: 'nowrap',
 };
 
@@ -157,7 +158,8 @@ export function DailySummaryTable({
                         textAlign: c.align ?? (c.numeric ? 'right' : 'left'),
                         cursor: sortable ? 'pointer' : undefined,
                         userSelect: sortable ? 'none' : undefined,
-                        color: isSorted ? colors.text.primary : colors.text.secondary,
+                        // Header text is white on teal; sort arrow just gets full opacity.
+                        opacity: isSorted ? 1 : 0.85,
                       }}
                       onClick={() => handleHeaderClick(c.key)}
                     >

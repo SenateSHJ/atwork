@@ -8,7 +8,11 @@ import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
 import { SearchableMultiSelect } from '@/components/hq/SearchableMultiSelect';
-import { MetricTrendsChart } from '@/components/hq/MetricTrendsChart';
+import dynamic from 'next/dynamic';
+const MetricTrendsChart = dynamic(
+  () => import('@/components/hq/MetricTrendsChart').then(m => ({ default: m.MetricTrendsChart })),
+  { ssr: false, loading: () => <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>Loading chart…</div> },
+);
 import { ByAgencyBarChart } from '@/components/hq/ByAgencyBarChart';
 import { DailySummaryTable, type DSTColumn } from '@/components/hq/DailySummaryTable';
 import {

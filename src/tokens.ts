@@ -32,8 +32,12 @@ export const colors = {
   },
 
   border: {
-    default: '#218b95',   // teal borders per brand
-    strong:  '#1a6e78',
+    // Neutral gray on interactive controls (filters, dropdowns, inputs) —
+    // matches the Coolum/Snainton pattern and reads cleaner than a coloured
+    // border. Teal is reserved for brand elements (scorecards, section cards)
+    // that reference colors.ui.teal/black directly.
+    default: '#E5E7EB',
+    strong:  '#D1D5DB',
     focus:   '#ccd404',   // yellow focus ring
   },
 

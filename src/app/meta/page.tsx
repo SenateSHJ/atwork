@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { format, parseISO } from 'date-fns';
 import { FallbackBanner, readBannerDismissed, persistBannerDismissed } from '@/components/FallbackBanner';
 import { colors, typography, spacing } from '@/tokens';
@@ -8,8 +9,23 @@ import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
 import { SearchableMultiSelect } from '@/components/hq/SearchableMultiSelect';
-import { MetricTrendsChart } from '@/components/hq/MetricTrendsChart';
 import { DailySummaryTable, type DSTColumn } from '@/components/hq/DailySummaryTable';
+
+// Recharts is ~90KB gzipped — lazy-load so the initial page bundle stays
+// small and above-fold scorecards paint before the chart lib finishes
+// downloading. Loading placeholder holds the row height so layout doesn't
+// jump when the chart mounts.
+const MetricTrendsChart = dynamic(
+  () => import('@/components/hq/MetricTrendsChart').then(m => ({ default: m.MetricTrendsChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>
+        Loading chart…
+      </div>
+    ),
+  },
+);
 import {
   fetchAboveFold, fetchBelowFold, fetchEntityTables, getFilterOptions,
   fetchEngagement, fetchVideoWatch, fetchTargeting,
