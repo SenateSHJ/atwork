@@ -52,6 +52,14 @@ import {
   getFilterOptions      as gadsGetFilterOptions,
 } from '@/app/google-ads/actions';
 
+// LinkedIn actions
+import {
+  fetchAboveFold      as linkedinFetchAboveFold,
+  fetchBelowFold      as linkedinFetchBelowFold,
+  fetchEntityTables   as linkedinFetchEntityTables,
+  getFilterOptions    as linkedinGetFilterOptions,
+} from '@/app/linkedin/actions';
+
 // Internal queries
 import {
   getSyncFreshness   as internalGetSyncFreshness,
@@ -84,9 +92,10 @@ const today   = format(new Date(),           'yyyy-MM-dd');
 const daysAgo = (n: number) => format(subDays(new Date(), n), 'yyyy-MM-dd');
 const start7  = daysAgo(7);
 
-const metaFilters = { campaigns: [], adsets: [], ads: [], creativeTypes: [], objectives: [] };
-const ga4Filters  = { channels: [], devices: [], landingPages: [] };
-const gadsFilters = { campaigns: [], adGroups: [], networks: [] };
+const metaFilters     = { campaigns: [], adsets: [], ads: [], creativeTypes: [], objectives: [] };
+const ga4Filters      = { channels: [], devices: [], landingPages: [] };
+const gadsFilters     = { campaigns: [], adGroups: [], networks: [] };
+const linkedinFilters = { campaigns: [], objectives: [] };
 
 // Each entry returns a promise that resolves to a CheckResult. Timing is
 // captured around the action call. Anything that throws OR takes over
@@ -119,6 +128,12 @@ const ENDPOINTS: EndpointDef[] = [
   { key: 'gads.fetchEntityTables',     label: 'Entity Tables',        category: 'Google Ads', run: () => gadsFetchEntityTables(start7, today, gadsFilters) },
   { key: 'gads.fetchTargetingSections',label: 'Targeting Sections',   category: 'Google Ads', run: () => gadsFetchTargetingSections(start7, today) },
   { key: 'gads.getFilterOptions',      label: 'Filter Options',       category: 'Google Ads', run: () => gadsGetFilterOptions(start7, today) },
+
+  // ── LinkedIn ──
+  { key: 'linkedin.fetchAboveFold',    label: 'Above Fold',      category: 'LinkedIn',    run: () => linkedinFetchAboveFold(start7, today, linkedinFilters) },
+  { key: 'linkedin.fetchBelowFold',    label: 'Below Fold',      category: 'LinkedIn',    run: () => linkedinFetchBelowFold(start7, today, linkedinFilters) },
+  { key: 'linkedin.fetchEntityTables', label: 'Entity Tables',   category: 'LinkedIn',    run: () => linkedinFetchEntityTables(start7, today, linkedinFilters) },
+  { key: 'linkedin.getFilterOptions',  label: 'Filter Options',  category: 'LinkedIn',    run: () => linkedinGetFilterOptions(start7, today) },
 
   // ── Internal ──
   { key: 'internal.getSyncFreshness',  label: 'Sync Freshness',       category: 'Internal',   run: () => internalGetSyncFreshness() },
@@ -162,10 +177,10 @@ type BronzeSource = {
 };
 
 const BRONZE_SOURCES: BronzeSource[] = [
-  { key: 'meta', label: 'Meta',        table: 'bronze.meta_campaign_insight' },
-  { key: 'ga4',  label: 'GA4',         table: 'bronze.ga4_channel_traffic'   },
-  { key: 'gads', label: 'Google Ads',  table: 'bronze.gads_campaign_stats'   },
-  // LinkedIn not ingested yet — see docs/README carryover for status.
+  { key: 'meta',     label: 'Meta',        table: 'bronze.meta_campaign_insight'     },
+  { key: 'ga4',      label: 'GA4',         table: 'bronze.ga4_channel_traffic'       },
+  { key: 'gads',     label: 'Google Ads',  table: 'bronze.gads_campaign_stats'       },
+  { key: 'linkedin', label: 'LinkedIn',    table: 'bronze.linkedin_campaign_stats'   },
 ];
 
 type BronzeFreshness = {

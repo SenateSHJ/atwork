@@ -10,7 +10,8 @@
     "ingest:meta": "node --env-file=.env.local scripts/bronze-meta.mjs",
     "ingest:gads": "node --env-file=.env.local scripts/bronze-gads.mjs",
     "ingest:ga4": "node --env-file=.env.local scripts/bronze-ga4.mjs",
-    "ingest:all": "npm run ingest:meta && npm run ingest:gads && npm run ingest:ga4",
+    "ingest:linkedin": "node --env-file=.env.local scripts/bronze-linkedin.mjs",
+    "ingest:all": "npm run ingest:meta && npm run ingest:gads && npm run ingest:ga4 && npm run ingest:linkedin",
     "preflight": "node scripts/preflight.mjs",
     "test": "vitest run"
   },
