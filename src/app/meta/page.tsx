@@ -556,9 +556,14 @@ export default function MetaPage() {
           fontSize: typography.fontSize.xs,
           color: colors.text.secondary,
           marginBottom: spacing.lg,
+          lineHeight: 1.5,
         }}
       >
-        Conversions = {META_CONVERSION_DEFINITION}
+        <div>
+          ▲ / ▼ arrows compare against the equivalent immediately-prior period
+          of the same length as the selected date range.
+        </div>
+        <div>Conversions = {META_CONVERSION_DEFINITION}</div>
       </div>
 
       {/* Top Performers — client-side pick from entityAds with noise floors so

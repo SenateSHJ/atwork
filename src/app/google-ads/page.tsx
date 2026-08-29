@@ -463,8 +463,13 @@ export default function GoogleAdsPage() {
       <div style={{
         textAlign: 'center', fontSize: typography.fontSize.xs,
         color: colors.text.secondary, marginBottom: spacing.lg,
+        lineHeight: 1.5,
       }}>
-        Conversions = {GADS_CONVERSION_DEFINITION}
+        <div>
+          ▲ / ▼ arrows compare against the equivalent immediately-prior period
+          of the same length as the selected date range.
+        </div>
+        <div>Conversions = {GADS_CONVERSION_DEFINITION}</div>
       </div>
 
       {/* Top Performers — client-side pick with per-metric noise floors so a

@@ -397,7 +397,7 @@ export default function Ga4Page() {
         color: colors.text.primary,
         marginBottom: spacing.lg,
       }}>
-        Website
+        Google Analytics
       </h2>
 
       <FallbackBanner
@@ -484,6 +484,10 @@ export default function Ga4Page() {
         color: colors.text.secondary, marginBottom: spacing.md,
         lineHeight: 1.5,
       }}>
+        <div>
+          ▲ / ▼ arrows compare against the equivalent immediately-prior
+          period of the same length as the selected date range.
+        </div>
         <div>
           Avg. Engagement = GA4 average engagement time per session. The low
           figure reflects short visits (glance-and-leave menu / hours

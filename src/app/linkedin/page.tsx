@@ -473,6 +473,14 @@ export default function LinkedinPage() {
         <BFScorecard title="Fullscreen"     value={fmtInt(t?.fullscreen_plays ?? 0)}   sparklineData={spark.videoCompletions} color="blue" size="small" delta={{ pct: deltaPct(t?.fullscreen_plays,      priorTotals?.fullscreen_plays),      goodDirection: 'up'   }} />
       </div>
 
+      <div style={{
+        textAlign: 'center', fontSize: typography.fontSize.xs,
+        color: colors.text.secondary, marginBottom: spacing.lg,
+      }}>
+        ▲ / ▼ arrows compare against the equivalent immediately-prior period
+        of the same length as the selected date range.
+      </div>
+
       {/* Top Performers — sits directly under the scorecards. Client-side pick
           from entityAds (ads-grain) with noise-floor thresholds so a
           1-impression ad can't take the top spot. Teal borders match the
