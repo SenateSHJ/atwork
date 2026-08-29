@@ -5,7 +5,7 @@
 
 import { getMetaSummary, getMetaCampaigns } from '@/lib/queries/meta';
 import { supabaseServer } from '@/lib/supabase/server';
-import type { DailyPoint, NormalisedPeriod, Entity } from '@/lib/reporting';
+import type { DailyPoint, NormalisedPeriod, Entity } from '@prism/executive-summaries';
 import { atworkMonthLabel, monthBounds } from './config';
 import { computePeriodStats } from './helpers';
 
@@ -59,20 +59,28 @@ export async function fetchAtWorkMetaPeriod(month: string): Promise<NormalisedPe
   const entities: Entity[] = campaigns.map(camp => {
     const conv = convByCamp.get(camp.campaign_id) ?? 0;
     return {
-      id:    camp.campaign_id,
-      name:  camp.campaign_name,
-      grain: 'campaign',
+      id:              camp.campaign_id,
+      name:            camp.campaign_name,
+      grain:           'campaign',
+      parent_id:       null,
+      ancestry_ids:    [],
+      demand_type:     'unknown',
+      creative_source: 'unknown',
+      input_health:    null,
       metrics: {
-        spend:            camp.spend,
-        impressions:      camp.impressions,
-        clicks:           camp.clicks,
-        conversions:      conv,
-        ctr:              camp.ctr,
-        cpc:              camp.cpc,
-        cpm:              null,
-        cpa:              conv > 0 ? camp.spend / conv : null,
-        conversion_rate:  null,
-        conversion_value: null,
+        spend:                    camp.spend,
+        impressions:              camp.impressions,
+        clicks:                   camp.clicks,
+        conversions:              conv,
+        ctr:                      camp.ctr,
+        cpc:                      camp.cpc,
+        cpm:                      null,
+        cpa:                      conv > 0 ? camp.spend / conv : null,
+        conversion_rate:          null,
+        conversion_value:         null,
+        refund_value:             null,
+        new_customer_conversions: null,
+        new_customer_value:       null,
         custom: {
           video_views: videoByCamp.get(camp.campaign_id) ?? 0,
         },
@@ -89,16 +97,19 @@ export async function fetchAtWorkMetaPeriod(month: string): Promise<NormalisedPe
     },
     channel: CHANNEL,
     metrics: {
-      spend:            summary.spend,
-      impressions:      summary.impressions,
-      clicks:           summary.clicks,
-      conversions:      totalConversions,
-      ctr:              summary.ctr,
-      cpc:              summary.cpc,
-      cpm:              summary.cpm,
+      spend:                    summary.spend,
+      impressions:              summary.impressions,
+      clicks:                   summary.clicks,
+      conversions:              totalConversions,
+      ctr:                      summary.ctr,
+      cpc:                      summary.cpc,
+      cpm:                      summary.cpm,
       cpa,
-      conversion_rate:  null,
-      conversion_value: null,
+      conversion_rate:          null,
+      conversion_value:         null,
+      refund_value:             null,
+      new_customer_conversions: null,
+      new_customer_value:       null,
       custom: {
         reach:       summary.reach,
         video_views: totalVideoViews,
@@ -108,5 +119,9 @@ export async function fetchAtWorkMetaPeriod(month: string): Promise<NormalisedPe
     daily,
     stats: computePeriodStats(entities, daily),
     conversion_definition: CONVERSION_DEFINITION,
+    breakdowns:      {},
+    event_breakdown: [],
+    benchmarks:      {},
+    input_health:    null,
   };
 }

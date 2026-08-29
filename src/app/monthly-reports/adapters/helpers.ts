@@ -8,7 +8,7 @@ import type {
   Entity,
   NormalisedPeriod,
   PeriodStats,
-} from '@/lib/reporting';
+} from '@prism/executive-summaries';
 
 export function computePeriodStats(entities: Entity[], daily: DailyPoint[]): PeriodStats {
   const spendValues       = entities.map(e => e.metrics.spend       ?? 0);

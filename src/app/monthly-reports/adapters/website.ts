@@ -11,7 +11,7 @@ import {
   getGa4Summary, getGa4Conversions, getGa4LeadEvents, getGa4Trend,
   getGa4Channels,
 } from '@/lib/queries/ga4';
-import type { DailyPoint, NormalisedPeriod, Entity } from '@/lib/reporting';
+import type { DailyPoint, NormalisedPeriod, Entity } from '@prism/executive-summaries';
 import { atworkMonthLabel, monthBounds } from './config';
 import { computePeriodStats } from './helpers';
 
@@ -51,24 +51,32 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
         sessions:    d.sessions,
         total_users: d.total_users,
       },
-    } as Partial<import('@/lib/reporting').Metrics>,
+    } as Partial<import('@prism/executive-summaries').Metrics>,
   }));
 
   const entities: Entity[] = channels.map(ch => ({
-    id:    ch.channel,
-    name:  ch.channel,
-    grain: 'channel',
+    id:              ch.channel,
+    name:            ch.channel,
+    grain:           'channel',
+    parent_id:       null,
+    ancestry_ids:    [],
+    demand_type:     'unknown',
+    creative_source: 'unknown',
+    input_health:    null,
     metrics: {
-      spend:            null,
-      impressions:      null,
-      clicks:           null,
-      conversions:      ch.conversions,
-      ctr:              null,
-      cpc:              null,
-      cpm:              null,
-      cpa:              null,
-      conversion_rate:  ch.conversion_rate_pct,
-      conversion_value: null,
+      spend:                    null,
+      impressions:              null,
+      clicks:                   null,
+      conversions:              ch.conversions,
+      ctr:                      null,
+      cpc:                      null,
+      cpm:                      null,
+      cpa:                      null,
+      conversion_rate:          ch.conversion_rate_pct,
+      conversion_value:         null,
+      refund_value:             null,
+      new_customer_conversions: null,
+      new_customer_value:       null,
       custom: {
         sessions:        ch.sessions,
         total_users:     ch.total_users,
@@ -87,16 +95,19 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
     },
     channel: CHANNEL,
     metrics: {
-      spend:            null,
-      impressions:      null,
-      clicks:           null,
-      conversions:      totalLeads,
-      ctr:              null,
-      cpc:              null,
-      cpm:              null,
-      cpa:              null,
-      conversion_rate:  conv.conversion_rate,
-      conversion_value: null,
+      spend:                    null,
+      impressions:              null,
+      clicks:                   null,
+      conversions:              totalLeads,
+      ctr:                      null,
+      cpc:                      null,
+      cpm:                      null,
+      cpa:                      null,
+      conversion_rate:          conv.conversion_rate,
+      conversion_value:         null,
+      refund_value:             null,
+      new_customer_conversions: null,
+      new_customer_value:       null,
       custom: {
         sessions:                 summary.sessions,
         total_users:              summary.total_users,
@@ -112,5 +123,9 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
     daily,
     stats: computePeriodStats(entities, daily),
     conversion_definition: CONVERSION_DEFINITION,
+    breakdowns:      {},
+    event_breakdown: [],
+    benchmarks:      {},
+    input_health:    null,
   };
 }

@@ -9,9 +9,10 @@
 import { fetchAtWorkMetaPeriod }    from './adapters/meta';
 import { fetchAtWorkGadsPeriod }    from './adapters/gads';
 import { fetchAtWorkWebsitePeriod } from './adapters/website';
-import { ATWORK_CONFIG, atworkMonthLabel, priorMonth } from './adapters/config';
+import { atworkMonthLabel, priorMonth } from './adapters/config';
+import { ATWORK_CONFIG } from './adapters/client-config';
 import { buildHistory, computeComparisonStats } from './adapters/helpers';
-import { compose, SPINE_RULES, type NormalisedPeriod } from '@/lib/reporting';
+import { compose, SPINE_RULES, type NormalisedPeriod } from '@prism/executive-summaries';
 
 export interface SectionReport {
   paragraphs:    string[];
@@ -90,9 +91,16 @@ function composeSection(
     current.metrics.spend,
     current.metrics.conversions,
   );
-  return compose(
-    { current, prior, yoy: null, baseline: null, history, stats, config: ATWORK_CONFIG },
-    SPINE_RULES,
-    label,
-  );
+  // New engine signature: compose({ comparison, rules, section }) -> { section_report, findings, errors }.
+  // Extract .section_report and map its Paragraph[] to the atWork page's
+  // simpler { paragraphs: string[], basisSubtitle } shape.
+  const output = compose({
+    comparison: { current, prior, yoy: null, baseline: null, history, stats, config: ATWORK_CONFIG, change_events: [] },
+    rules:      SPINE_RULES,
+    section:    label,
+  });
+  return {
+    paragraphs:    output.section_report.paragraphs.map(p => p.text),
+    basisSubtitle: output.section_report.basis_subtitle,
+  };
 }

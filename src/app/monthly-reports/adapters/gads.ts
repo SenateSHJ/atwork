@@ -3,7 +3,7 @@
 
 import { getGadsSummary, getGadsCampaigns, getGadsConversionValue } from '@/lib/queries/gads';
 import { supabaseServer } from '@/lib/supabase/server';
-import type { DailyPoint, NormalisedPeriod, Entity } from '@/lib/reporting';
+import type { DailyPoint, NormalisedPeriod, Entity } from '@prism/executive-summaries';
 import { atworkMonthLabel, monthBounds } from './config';
 import { computePeriodStats } from './helpers';
 
@@ -38,21 +38,29 @@ export async function fetchAtWorkGadsPeriod(month: string): Promise<NormalisedPe
     .map(([date, m]) => ({ date, metrics: { spend: m.spend, impressions: m.impressions, clicks: m.clicks, conversions: m.conversions } }));
 
   const entities: Entity[] = campaigns.map(camp => ({
-    id:    camp.campaign_id,
-    name:  camp.campaign_name,
-    grain: 'campaign',
+    id:              camp.campaign_id,
+    name:            camp.campaign_name,
+    grain:           'campaign',
+    parent_id:       null,
+    ancestry_ids:    [],
+    demand_type:     'unknown',
+    creative_source: 'unknown',
+    input_health:    null,
     metrics: {
-      spend:            camp.spend,
-      impressions:      camp.impressions,
-      clicks:           camp.clicks,
-      conversions:      camp.conversions,
-      ctr:              camp.ctr,
-      cpc:              camp.cpc,
-      cpm:              null,
-      cpa:              camp.cpa,
-      conversion_rate:  null,
-      conversion_value: null,
-      custom:           {},
+      spend:                    camp.spend,
+      impressions:              camp.impressions,
+      clicks:                   camp.clicks,
+      conversions:              camp.conversions,
+      ctr:                      camp.ctr,
+      cpc:                      camp.cpc,
+      cpm:                      null,
+      cpa:                      camp.cpa,
+      conversion_rate:          null,
+      conversion_value:         null,
+      refund_value:             null,
+      new_customer_conversions: null,
+      new_customer_value:       null,
+      custom:                   {},
     },
   }));
 
@@ -65,21 +73,28 @@ export async function fetchAtWorkGadsPeriod(month: string): Promise<NormalisedPe
     },
     channel: CHANNEL,
     metrics: {
-      spend:            summary.spend,
-      impressions:      summary.impressions,
-      clicks:           summary.clicks,
-      conversions:      summary.conversions,
-      ctr:              summary.ctr,
-      cpc:              summary.cpc,
-      cpm:              summary.cpm,
-      cpa:              summary.cpa,
-      conversion_rate:  summary.conversion_rate,
-      conversion_value: convVal.total,
-      custom:           {},
+      spend:                    summary.spend,
+      impressions:              summary.impressions,
+      clicks:                   summary.clicks,
+      conversions:              summary.conversions,
+      ctr:                      summary.ctr,
+      cpc:                      summary.cpc,
+      cpm:                      summary.cpm,
+      cpa:                      summary.cpa,
+      conversion_rate:          summary.conversion_rate,
+      conversion_value:         convVal.total,
+      refund_value:             null,
+      new_customer_conversions: null,
+      new_customer_value:       null,
+      custom:                   {},
     },
     entities,
     daily,
     stats: computePeriodStats(entities, daily),
     conversion_definition: CONVERSION_DEFINITION,
+    breakdowns:      {},
+    event_breakdown: [],
+    benchmarks:      {},
+    input_health:    null,
   };
 }

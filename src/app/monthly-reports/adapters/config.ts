@@ -1,16 +1,6 @@
-// atWork-specific ClientConfig for the reporting engine. Overriding the
-// engine defaults here (currency, locale, thresholds) is the only place any
-// application code sets client-tenant values — the library itself has no
-// knowledge of atWork.
-
-import type { ClientConfig } from '@/lib/reporting';
-import { DEFAULT_THRESHOLDS } from '@/lib/reporting';
-
-export const ATWORK_CONFIG: ClientConfig = {
-  currency:   'AUD',
-  locale:     'en-AU',
-  thresholds: DEFAULT_THRESHOLDS,
-};
+// Client-safe date helpers only. ATWORK_CONFIG has moved to
+// ./client-config.ts (server-only, imports PRISM which pulls node:crypto).
+// This file must stay free of PRISM imports so page.tsx (client) can use it.
 
 // Month name — "2026-07" or "2026-07-01" -> "July 2026".
 export function atworkMonthLabel(month: string): string {
