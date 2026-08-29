@@ -11,11 +11,12 @@ const MOBILE_BREAKPOINT = 900;
 type Tier = 'client' | 'internal';
 
 const CLIENT_NAV = [
-  { label: 'Meta Ads',        to: '/meta'             },
-  { label: 'Google Ads',      to: '/google-ads'       },
-  { label: 'LinkedIn Ads',    to: '/linkedin'         },
-  { label: 'GA4',             to: '/ga4'              },
-  { label: 'Monthly Reports', to: '/monthly-reports'  },
+  { label: 'Meta Ads',        to: '/meta'                },
+  { label: 'Google Ads',      to: '/google-ads'          },
+  { label: 'LinkedIn Ads',    to: '/linkedin'            },
+  { label: 'GA4',             to: '/ga4'                 },
+  { label: 'Monthly Reports', to: '/monthly-reports'     },
+  { label: 'Settings',        to: '/internal/settings'   },
 ];
 
 const INTERNAL_NAV = [
