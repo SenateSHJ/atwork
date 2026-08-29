@@ -95,8 +95,8 @@ export default function GoogleAdsPage() {
   const [startDate, setStartDate] = useState(() => toIso(daysAgo(29)));
   const [endDate,   setEndDate]   = useState(() => toIso(new Date()));
 
-  const [filters, setFilters] = useState<GadsFilters>({ campaigns: [], adGroups: [], networks: [] });
-  const [filterOptions, setFilterOptions] = useState<GadsFilterOptions>({ campaigns: [], adGroups: [], networks: [] });
+  const [filters, setFilters] = useState<GadsFilters>({ campaigns: [], adGroups: [] });
+  const [filterOptions, setFilterOptions] = useState<GadsFilterOptions>({ campaigns: [], adGroups: [] });
 
   const [summaryTotals,    setSummaryTotals]    = useState<Totals | null>(null);
   const [priorTotals,      setPriorTotals]      = useState<Totals | null>(null);
@@ -301,7 +301,7 @@ export default function GoogleAdsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = () => {
     setRefreshing(true);
-    setFilters({ campaigns: [], adGroups: [], networks: [] });
+    setFilters({ campaigns: [], adGroups: [] });
     setStartDate(toIso(daysAgo(29)));
     setEndDate(toIso(new Date()));
     setBelowFoldRequested(false);
@@ -383,12 +383,6 @@ export default function GoogleAdsPage() {
           options={filterOptions.adGroups}
           value={filters.adGroups}
           onChange={vals => setFilters(prev => ({ ...prev, adGroups: vals }))}
-        />
-        <SearchableMultiSelect
-          label="Network"
-          options={filterOptions.networks}
-          value={filters.networks}
-          onChange={vals => setFilters(prev => ({ ...prev, networks: vals }))}
         />
 
         <DateRangePicker
