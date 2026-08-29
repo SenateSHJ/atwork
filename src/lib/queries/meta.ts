@@ -195,7 +195,7 @@ export async function getMetaCreativeOptions(range: DateRange) {
 export async function getMetaAdsCreative(range: DateRange) {
   const sb = supabaseServer()
   const { data } = await sb.schema('silver').from('meta_ads_with_creative')
-    .select('ad_id,ad_name,adset_id,campaign_id,creative_id,media_type,image_url,thumbnail_url,video_thumbnail_array,effective_object_story_id,effective_instagram_media_id,creative_title,creative_body,call_to_action_type,spend,impressions,clicks,reach')
+    .select('ad_id,ad_name,adset_id,campaign_id,creative_id,media_type,preview_url,preview_kind,creative_title,creative_body,call_to_action_type,spend,impressions,clicks,reach')
     .gte('date', range.from).lte('date', range.to)
   if (!data?.length) return []
 
@@ -203,11 +203,8 @@ export async function getMetaAdsCreative(range: DateRange) {
     ad_id: string; ad_name: string | null; adset_id: string; campaign_id: string;
     creative_id: string | null;
     media_type: string | null;
-    image_url: string | null;
-    thumbnail_url: string | null;
-    video_thumbnail_array: string | null;
-    effective_object_story_id: string | null;
-    effective_instagram_media_id: string | null;
+    preview_url: string | null;
+    preview_kind: string | null;
     creative_title: string | null;
     creative_body: string | null;
     call_to_action_type: string | null;
@@ -222,11 +219,8 @@ export async function getMetaAdsCreative(range: DateRange) {
       campaign_id: r.campaign_id as string,
       creative_id: (r.creative_id as string) ?? null,
       media_type: (r.media_type as string) ?? null,
-      image_url: (r.image_url as string) ?? null,
-      thumbnail_url: (r.thumbnail_url as string) ?? null,
-      video_thumbnail_array: (r.video_thumbnail_array as string) ?? null,
-      effective_object_story_id: (r.effective_object_story_id as string) ?? null,
-      effective_instagram_media_id: (r.effective_instagram_media_id as string) ?? null,
+      preview_url: (r.preview_url as string) ?? null,
+      preview_kind: (r.preview_kind as string) ?? null,
       creative_title: (r.creative_title as string) ?? null,
       creative_body: (r.creative_body as string) ?? null,
       call_to_action_type: (r.call_to_action_type as string) ?? null,

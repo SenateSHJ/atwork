@@ -384,11 +384,10 @@ export interface EntityRow {
   media_type?:         string | null;
   objective?:          string | null;   // Campaigns table only
   // Creative preview + copy — Ads table only (via silver.meta_ads_with_creative).
-  image_url?:          string | null;
-  thumbnail_url?:      string | null;
-  video_thumbnail_array?: string | null;  // JSON string of 160×160 video posters (Weld ships as string)
-  effective_object_story_id?: string | null;   // {page_id}_{post_id} — powers FB post embed
-  effective_instagram_media_id?: string | null;  // IG media id — convert to shortcode for public embed
+  // preview_url + preview_kind are CASE-WHEN computed in the silver view so
+  // the client render is one <img> tag + one badge, no fallback logic.
+  preview_url?:        string | null;
+  preview_kind?:       string | null;   // 'VIDEO' | 'IMAGE' | 'TEXT' | 'OTHER'
   creative_title?:     string | null;
   creative_body?:      string | null;
   call_to_action_type?: string | null;
@@ -544,11 +543,8 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Met
       return {
         name:                a.ad_name ?? '(unnamed)',
         media_type:          a.media_type ?? null,
-        image_url:           a.image_url ?? null,
-        thumbnail_url:       a.thumbnail_url ?? null,
-        video_thumbnail_array: a.video_thumbnail_array ?? null,
-        effective_object_story_id: a.effective_object_story_id ?? null,
-        effective_instagram_media_id: a.effective_instagram_media_id ?? null,
+        preview_url:         a.preview_url ?? null,
+        preview_kind:        a.preview_kind ?? null,
         creative_title:      a.creative_title ?? null,
         creative_body:       a.creative_body ?? null,
         call_to_action_type: a.call_to_action_type ?? null,

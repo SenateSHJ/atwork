@@ -71,66 +71,30 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
       label: 'Preview',
       align: 'left',
       render: r => {
-        // Preview scenarios (all handled explicitly, nothing broken shipped):
-        //
-        //   A. IMAGE AD with high-res image_url — show image full size (works
-        //      great, Facebook CDN URLs are publicly hotlinkable)
-        //   B. VIDEO AD with real poster content — show the 160x160 video
-        //      poster + VIDEO badge overlay
-        //   C. VIDEO AD with brand-only poster (solid teal, atWork's videos
-        //      open on a brand intro) — same treatment; the badge tells the
-        //      user it's a video not a broken image
-        //   D. LAST-RESORT thumbnail_url (64px) — same treatment
-        //   E. NO preview data — show a labeled placeholder card
-        //
-        // What we DON'T do (and can't):
-        //   - Facebook post embed: atWork's ads are dark posts, FB returns
-        //     "no longer available" on the public plugins/post.php endpoint
-        //   - Instagram embed: effective_instagram_media_id is Meta's ads-
-        //     context 17-digit ID, not Instagram's internal 19-digit PK that
-        //     shortcodes derive from. No public conversion exists.
-        //   - Frame-by-frame video posters: needs Meta Marketing API OAuth
-        const objType = String(r.object_type ?? '').toUpperCase();
-        const isVideo = objType === 'VIDEO' || Boolean(r.video_thumbnail_array);
-        const mediaType = isVideo ? 'VIDEO' : (r.media_type ? String(r.media_type).toUpperCase() : 'IMAGE');
-
-        let src: string | null = (r.image_url as string | null | undefined) ?? null;
-        if (!src) {
-          const arr = r.video_thumbnail_array as string | null | undefined;
-          if (arr) {
-            try {
-              const parsed = JSON.parse(arr) as unknown;
-              if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === 'string') {
-                src = parsed[0];
-              }
-            } catch { /* fall through */ }
-          }
-        }
-        if (!src) src = (r.thumbnail_url as string | null | undefined) ?? null;
-
-        // Scenario E: nothing at all
-        if (!src) {
+        // Preview URL + kind computed in silver.meta_ads_with_creative via
+        // CASE WHEN so the client render is trivial. Kind is one of
+        // VIDEO / IMAGE / TEXT / OTHER; URL is the best available source.
+        const url  = (r.preview_url  as string | null | undefined) ?? null;
+        const kind = String(r.preview_kind ?? 'IMAGE').toUpperCase();
+        if (!url) {
           return (
-            <div style={{ width: 200, height: 200, backgroundColor: '#f9fafb', border: `1px solid ${colors.border.default}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, color: colors.text.secondary, fontSize: typography.fontSize.xs, textAlign: 'center', padding: spacing.sm }}>
+            <div style={{ width: 200, height: 200, backgroundColor: '#f9fafb', border: `1px solid ${colors.border.default}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, color: colors.text.secondary, fontSize: typography.fontSize.xs, textAlign: 'center' }}>
               <div style={{ fontSize: 22 }}>◇</div>
               <div>No preview<br />available</div>
-              <div style={{ opacity: 0.6 }}>{mediaType}</div>
+              <div style={{ opacity: 0.6 }}>{kind}</div>
             </div>
           );
         }
-        // Scenarios A–D: image with badge if video
         return (
           <div style={{ position: 'relative', width: 200, height: 200, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={src}
+              src={url}
               alt="Ad creative"
               loading="lazy"
-              // scale-down: render at native px when source is smaller than the
-              // 200px box (no upscale blur on 160px video posters).
               style={{ width: '100%', height: '100%', objectFit: 'scale-down', display: 'block' }}
             />
-            {isVideo && (
+            {kind === 'VIDEO' && (
               <div style={{
                 position: 'absolute', bottom: 6, left: 6,
                 padding: '2px 6px',
