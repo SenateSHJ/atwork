@@ -260,7 +260,7 @@ export default function Ga4Page() {
           const c   = Number(r.count ?? 0);
           const pct = max > 0 ? (c / max) * 100 : 0;
           return (
-            <div style={{ position: 'relative', width: '100%', minWidth: 160, height: 18, backgroundColor: colors.background.panel }}>
+            <div style={{ position: 'relative', width: '100%', minWidth: 160, height: 18 }}>
               <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
             </div>
           );
@@ -285,7 +285,7 @@ export default function Ga4Page() {
           const v   = Number(r.page_views ?? 0);
           const pct = max > 0 ? (v / max) * 100 : 0;
           return (
-            <div style={{ position: 'relative', width: '100%', minWidth: 160, height: 18, backgroundColor: colors.background.panel }}>
+            <div style={{ position: 'relative', width: '100%', minWidth: 160, height: 18 }}>
               <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
             </div>
           );
