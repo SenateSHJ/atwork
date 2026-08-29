@@ -2,12 +2,41 @@ import { supabaseServer } from '@/lib/supabase/server'
 
 export type DateRange = { from: string; to: string }
 
+// Whitelist of GA4 event names counted toward the Lead Events scorecard +
+// Daily Summary lead_events column. Derived from atWork's actual event set
+// (verified 2026-08-29 against silver.ga4_events over last 30 days).
+//
+// Included — clear lead / conversion intent:
+//   enquire_*                — every enquiry form on the site
+//   DES_client_register_form — Disability Employment Services registration
+//   DES_email / des_*        — DES-specific enquiries
+//   GA4_phone_clicks         — phone number tap-to-call
+//   GA4_live_chat_start,
+//   live_chat_clients_only,
+//   live_chat_employers_only — chat initiations (this business treats chat
+//                              engagements as leads; drop these three if
+//                              the client wants a stricter form-only count)
+//   landing_page_register    — landing-page register CTA
+//
+// Excluded — engagement / content, not lead intent:
+//   file_download, landing_page_employer, page_view, session_start,
+//   first_visit, user_engagement, scroll, click, view_search_results, alex
 const LEAD_EVENTS = [
-  'tel_click',
-  'form_submit',
-  'Contact_Form',
-  'events_mail',
-  'general_enquiries_mail',
+  'enquire_job_support',
+  'enquire_form_submit_jobseeker',
+  'enquire_form_submit_employer',
+  'enquire_form_submit_somethingelse',
+  'enquire_form_submit',
+  'enquire_something_else',
+  'enquire_staff_support',
+  'DES_client_register_form',
+  'DES_email',
+  'des_employer_enquiry',
+  'GA4_phone_clicks',
+  'GA4_live_chat_start',
+  'live_chat_clients_only',
+  'live_chat_employers_only',
+  'landing_page_register',
 ] as const
 
 export async function getGa4Summary(range: DateRange) {

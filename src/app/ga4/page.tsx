@@ -224,6 +224,32 @@ export default function Ga4Page() {
     conversion_rate:  d.conversion_rate,
   })), [ga4Trend]);
 
+  // Day-of-Week aggregation — derive client-side from ga4Trend. Weld's GA4
+  // sync doesn't ship a per-DOW breakdown, and hour-of-day isn't available
+  // in ANY of the seven synced tables either (verified 2026-08-29), so
+  // Time-of-Day at hour granularity would need a connector expansion.
+  const dowData = useMemo(() => {
+    const buckets: { sessions: number; users: number; page_views: number; lead_events: number; engaged_sessions: number }[] =
+      Array.from({ length: 7 }, () => ({ sessions: 0, users: 0, page_views: 0, lead_events: 0, engaged_sessions: 0 }));
+    for (const d of ga4Trend) {
+      if (!d.date) continue;
+      const idx = new Date(d.date).getDay(); // 0=Sun … 6=Sat
+      buckets[idx].sessions         += d.sessions         ?? 0;
+      buckets[idx].users            += d.total_users      ?? 0;
+      buckets[idx].page_views       += d.page_views       ?? 0;
+      buckets[idx].lead_events      += d.lead_events      ?? 0;
+      buckets[idx].engaged_sessions += d.engaged_sessions ?? 0;
+    }
+    const order = [1, 2, 3, 4, 5, 6, 0]; // Mon..Sun
+    const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return order.map(i => ({
+      weekday: labels[i],
+      weekday_idx: i,
+      ...buckets[i],
+      engagement_rate: buckets[i].sessions ? (buckets[i].engaged_sessions / buckets[i].sessions) * 100 : null,
+    }));
+  }, [ga4Trend]);
+
   // Daily Summary totals row — session-weighted derived rates.
   const dailyTotals = useMemo(() => {
     const users            = ga4Trend.reduce((s, r) => s + r.total_users,      0);
@@ -529,9 +555,10 @@ export default function Ga4Page() {
           })()}
         </ChartContainer>
 
-        {/* Traffic by Channel + Users by Device — paired half-width bar charts.
-            calc(50% - 12px) matches the 24px gap; minWidth 300 keeps them
-            readable on narrower screens and forces a wrap when tight. */}
+        {/* Bar-chart grid — Channel + Device + Day of Week.
+            calc(50% - 12px) with minWidth 300 puts them 2-up on desktop
+            and stacks on narrow. Day of Week takes the third slot on the
+            next row when the first two are side-by-side. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
           <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
             <ChartContainer title="Traffic by Channel">
@@ -549,6 +576,37 @@ export default function Ga4Page() {
                 lowerIsBetter={false}
                 formatter={v => Number(v).toLocaleString()}
               />
+            </ChartContainer>
+          </div>
+          <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+            <ChartContainer title="Sessions by Day of Week">
+              <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {dowData.every(d => d.sessions === 0) ? (
+                  <div style={{ padding: spacing.md, color: colors.text.secondary, fontSize: typography.fontSize.sm, textAlign: 'center' }}>
+                    No sessions in the selected range.
+                  </div>
+                ) : (() => {
+                  const maxSess = Math.max(...dowData.map(d => d.sessions));
+                  return dowData.map(d => {
+                    const pct = maxSess > 0 ? (d.sessions / maxSess) * 100 : 0;
+                    return (
+                      <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                        <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                          {d.weekday}
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                          <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                        </div>
+                        <div style={{ width: 170, flexShrink: 0, fontSize: typography.fontSize.xs, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: 4, fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontWeight: typography.fontWeight.semibold }}>{Number(d.sessions).toLocaleString()}</span>
+                          <span style={{ color: colors.text.secondary }}>{Number(d.users).toLocaleString()} u</span>
+                          <span style={{ color: colors.text.secondary }}>{d.lead_events} leads</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </ChartContainer>
           </div>
         </div>

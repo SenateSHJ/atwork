@@ -112,7 +112,7 @@ export default function GoogleAdsPage() {
 
   type PerfTab =
     | 'campaigns' | 'adgroups' | 'ads' | 'daily'
-    | 'keywords' | 'searchterms' | 'assetgroups' | 'audience';
+    | 'keywords' | 'wasted' | 'searchterms' | 'assetgroups' | 'audience';
   const [perfTab, setPerfTab] = useState<PerfTab>('campaigns');
 
   type TrendTab =
@@ -223,6 +223,59 @@ export default function GoogleAdsPage() {
     conversion_value:    Number(d.conversion_value ?? 0),
     roas:                d.spend_aud ? (Number(d.conversion_value ?? 0) / d.spend_aud) * 100 : null,
   })), [dailyRows]);
+
+  // Day-of-Week aggregation — derive client-side from dailyRows. Google Ads
+  // doesn't ship a per-DOW breakdown so we reduce daily rows into a fixed
+  // Sun→Sat array (index 0..6). Sum volume, weighted CTR from clicks/impr.
+  const dowData = useMemo(() => {
+    const buckets: { spend: number; impressions: number; clicks: number; conversions: number }[] =
+      Array.from({ length: 7 }, () => ({ spend: 0, impressions: 0, clicks: 0, conversions: 0 }));
+    for (const d of dailyRows) {
+      if (!d.date) continue;
+      const idx = new Date(d.date).getDay(); // 0=Sun … 6=Sat
+      buckets[idx].spend       += d.spend_aud   ?? 0;
+      buckets[idx].impressions += d.impressions ?? 0;
+      buckets[idx].clicks      += d.clicks      ?? 0;
+      buckets[idx].conversions += Number(d.conversions ?? 0);
+    }
+    // Reorder to Mon..Sun which reads more naturally for a business-week view.
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return order.map(i => ({
+      weekday: labels[i],
+      weekday_idx: i,
+      ...buckets[i],
+      ctr: buckets[i].impressions ? (buckets[i].clicks / buckets[i].impressions) * 100 : null,
+    }));
+  }, [dailyRows]);
+
+  // Match Type distribution — bucket entityKeywords spend by match type. atWork
+  // ran Search campaigns until Jan 2025 so historical ranges show the mix.
+  const matchTypeData = useMemo(() => {
+    const map = new Map<string, { spend: number; clicks: number; impressions: number; conversions: number }>();
+    for (const k of entityKeywords) {
+      const key = (k.match_type ?? 'Unknown').toString().toUpperCase();
+      const e = map.get(key) ?? { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
+      e.spend       += k.spend       ?? 0;
+      e.clicks      += k.clicks      ?? 0;
+      e.impressions += k.impressions ?? 0;
+      e.conversions += Number(k.conversions ?? 0);
+      map.set(key, e);
+    }
+    return [...map.entries()]
+      .map(([match_type, m]) => ({ match_type, ...m, ctr: m.impressions ? (m.clicks / m.impressions) * 100 : null }))
+      .sort((a, b) => b.spend - a.spend);
+  }, [entityKeywords]);
+
+  // Wasted Spend — keywords that spent $5+ but returned zero conversions
+  // over the selected range. Sorted by spend desc so the biggest bleeders
+  // sit at the top for immediate action.
+  const wastedKeywords = useMemo(
+    () => entityKeywords
+      .filter(k => (k.spend ?? 0) >= 5 && Number(k.conversions ?? 0) === 0)
+      .sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0)),
+    [entityKeywords],
+  );
 
   const dailyTotals = useMemo(() => {
     const spend       = dailyRows.reduce((s, r) => s + r.spend_aud,                    0);
@@ -414,24 +467,41 @@ export default function GoogleAdsPage() {
         Conversions = {GADS_CONVERSION_DEFINITION}
       </div>
 
-      {/* Top Performers — client-side pick from entityCampaigns with noise
-          floors so a 1-impression campaign can't take the top spot. Same
-          treatment as the Meta page. */}
-      {entityCampaigns.length > 0 && (() => {
-        const withImpr  = entityCampaigns.filter(c => c.impressions >= 500);
-        const withConv  = entityCampaigns.filter(c => Number(c.conversions ?? 0) >= 3);
-        const withValue = entityCampaigns.filter(c => Number(c.conversion_value ?? 0) >= 100);
-        const bestCtr  = withImpr.slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
-        const bestCpa  = withConv.slice().sort((a, b) => (a.cost_per_conversion ?? Infinity) - (b.cost_per_conversion ?? Infinity))[0];
-        const bestRoas = withValue.slice().sort((a, b) => {
+      {/* Top Performers — client-side pick with per-metric noise floors so a
+          1-impression row can't take the top spot. Six highlights: three
+          campaign-grain (CTR / CPA / ROAS) plus one each from ad-groups,
+          keywords, and search-terms — spreading across entities surfaces
+          insights the campaign-grain view alone misses. */}
+      {(entityCampaigns.length > 0 || entityAdGroups.length > 0 || entityKeywords.length > 0 || entitySearchTerms.length > 0) && (() => {
+        // Campaign-grain
+        const withImpr   = entityCampaigns.filter(c => c.impressions >= 500);
+        const withConv   = entityCampaigns.filter(c => Number(c.conversions ?? 0) >= 3);
+        const withValue  = entityCampaigns.filter(c => Number(c.conversion_value ?? 0) >= 100);
+        const bestCtr    = withImpr .slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
+        const bestCpa    = withConv .slice().sort((a, b) => (a.cost_per_conversion ?? Infinity) - (b.cost_per_conversion ?? Infinity))[0];
+        const bestRoas   = withValue.slice().sort((a, b) => {
           const ra = a.spend ? (Number(a.conversion_value ?? 0) / a.spend) * 100 : 0;
           const rb = b.spend ? (Number(b.conversion_value ?? 0) / b.spend) * 100 : 0;
           return rb - ra;
         })[0];
-        const highlights: { label: string; value: string; camp: GadsEntityRow | undefined }[] = [
-          { label: 'Best CTR (500+ impr)',       value: bestCtr ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                    : '—', camp: bestCtr  },
-          { label: 'Best CPA (3+ conv)',         value: bestCpa ? `$${(bestCpa.cost_per_conversion ?? 0).toFixed(2)}`                    : '—', camp: bestCpa  },
-          { label: 'Best ROAS ($100+ value)',    value: bestRoas ? `${(bestRoas.spend ? (Number(bestRoas.conversion_value ?? 0) / bestRoas.spend) * 100 : 0).toFixed(0)}%` : '—', camp: bestRoas },
+        // Ad-group-grain
+        const agClicks   = entityAdGroups.filter(a => a.clicks >= 100);
+        const bestAgRate = agClicks.slice().sort((a, b) => (b.conversion_rate ?? 0) - (a.conversion_rate ?? 0))[0];
+        // Keyword-grain — cheapest CPC among keywords that actually got seen
+        const kwImpr     = entityKeywords.filter(k => k.impressions >= 500 && k.cpc != null);
+        const cheapestKw = kwImpr.slice().sort((a, b) => (a.cpc ?? Infinity) - (b.cpc ?? Infinity))[0];
+        // Search-term-grain — top by conversions (informs "add as keyword" or
+        // "negate" decisions depending on relevance).
+        const stConv     = entitySearchTerms.filter(s => Number(s.conversions ?? 0) >= 3);
+        const topStConv  = stConv.slice().sort((a, b) => Number(b.conversions ?? 0) - Number(a.conversions ?? 0))[0];
+
+        const highlights: { label: string; value: string; row: GadsEntityRow | undefined }[] = [
+          { label: 'Best CTR — Campaign (500+ impr)',     value: bestCtr    ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                     : '—', row: bestCtr },
+          { label: 'Best CPA — Campaign (3+ conv)',       value: bestCpa    ? `$${(bestCpa.cost_per_conversion ?? 0).toFixed(2)}`                     : '—', row: bestCpa },
+          { label: 'Best ROAS — Campaign ($100+ value)',  value: bestRoas   ? `${(bestRoas.spend ? (Number(bestRoas.conversion_value ?? 0) / bestRoas.spend) * 100 : 0).toFixed(0)}%` : '—', row: bestRoas },
+          { label: 'Best Conv. Rate — Ad Group (100+ clk)', value: bestAgRate ? `${(bestAgRate.conversion_rate ?? 0).toFixed(2)}%`                       : '—', row: bestAgRate },
+          { label: 'Cheapest CPC — Keyword (500+ impr)',  value: cheapestKw ? `$${(cheapestKw.cpc ?? 0).toFixed(2)}`                                  : '—', row: cheapestKw },
+          { label: 'Top Search Term (3+ conv)',           value: topStConv  ? `${fmtInt(Number(topStConv.conversions ?? 0))} conv`                    : '—', row: topStConv },
         ];
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
@@ -443,9 +513,9 @@ export default function GoogleAdsPage() {
                 <div style={{ fontSize: '1.75rem', fontWeight: typography.fontWeight.bold, color: colors.text.primary, fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
                   {h.value}
                 </div>
-                {h.camp && (
-                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={String(h.camp.name)}>
-                    {String(h.camp.name)}
+                {h.row && (
+                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={String(h.row.name)}>
+                    {String(h.row.name)}
                   </div>
                 )}
               </div>
@@ -459,6 +529,78 @@ export default function GoogleAdsPage() {
 
       {/* ── Full-width bottom sections ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+
+        {/* Two bar charts side by side: Day of Week + Match Type. Both derive
+            from state we already have on the client — no server change. */}
+        {/* Note on missing breakdowns: Weld's Google Ads sync doesn't ship
+            ad_network_type, advertising_channel_type, or device dimensions
+            (verified via bronze schema 2026-08-29). Spend-by-Network,
+            Campaign-Type, and Device bar charts would need a connector
+            expansion — not possible with the current sync. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
+          <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+            <ChartContainer title="Performance by Day of Week">
+              <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {dowData.every(d => d.spend === 0) ? (
+                  <div style={{ padding: spacing.md, color: colors.text.secondary, fontSize: typography.fontSize.sm, textAlign: 'center' }}>
+                    No spend in the selected range.
+                  </div>
+                ) : (() => {
+                  const maxSpend = Math.max(...dowData.map(d => d.spend));
+                  return dowData.map(d => {
+                    const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
+                    return (
+                      <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                        <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                          {d.weekday}
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                          <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                        </div>
+                        <div style={{ width: 180, flexShrink: 0, fontSize: typography.fontSize.xs, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: 4, fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
+                          <span style={{ color: colors.text.secondary }}>{fmtInt(d.clicks)} clk</span>
+                          <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </ChartContainer>
+          </div>
+          <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+            <ChartContainer title="Match Type Distribution">
+              <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {matchTypeData.length === 0 ? (
+                  <div style={{ padding: spacing.md, color: colors.text.secondary, fontSize: typography.fontSize.sm, textAlign: 'center' }}>
+                    No keyword data in the selected range.
+                  </div>
+                ) : (() => {
+                  const maxSpend = Math.max(...matchTypeData.map(m => m.spend));
+                  return matchTypeData.map(m => {
+                    const pct = maxSpend > 0 ? (m.spend / maxSpend) * 100 : 0;
+                    const label = m.match_type.charAt(0) + m.match_type.slice(1).toLowerCase();
+                    return (
+                      <div key={m.match_type} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                        <div style={{ width: 80, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }} title={m.match_type}>
+                          {label}
+                        </div>
+                        <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 30 }}>
+                          <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                        </div>
+                        <div style={{ width: 160, flexShrink: 0, fontSize: typography.fontSize.xs, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: 4, fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(m.spend).toLocaleString()}`}</span>
+                          <span style={{ color: colors.text.secondary }}>{m.ctr == null ? '—' : `${m.ctr.toFixed(2)}%`}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </ChartContainer>
+          </div>
+        </div>
 
         {/* One tabbed line-chart card — same pattern as Meta. Data derived
             from dailyRows so each tab reads its own key without a separate
@@ -551,6 +693,7 @@ export default function GoogleAdsPage() {
               { key: 'ads',         label: 'Ads'           },
               { key: 'daily',       label: 'Daily Summary' },
               { key: 'keywords',    label: 'Keywords'      },
+              { key: 'wasted',      label: 'Wasted Spend'  },
               { key: 'searchterms', label: 'Search Terms'  },
               { key: 'assetgroups', label: 'Asset Groups'  },
               { key: 'audience',    label: 'Audience'      },
@@ -627,6 +770,29 @@ export default function GoogleAdsPage() {
                       paginate={20}
                     />
                     {entityKeywords.length === 0 && searchPausedNote}
+                  </>
+                );
+              case 'wasted':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={wastedKeywords as unknown as DailyRow[]}
+                      columns={entityColumns('Keyword', { withMatchType: true, withAdGroup: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {wastedKeywords.length === 0 ? (
+                      <div style={noteBox}>
+                        No wasted spend in the selected range. Keywords listed here
+                        would have spent $5 or more with zero conversions —
+                        candidates for pausing, negating, or bid reduction.
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: spacing.sm, textAlign: 'right', fontSize: typography.fontSize.xs, color: colors.text.secondary }}>
+                        {wastedKeywords.length} keyword{wastedKeywords.length === 1 ? '' : 's'} spent $5+ with zero conversions. Sorted by spend descending.
+                      </div>
+                    )}
                   </>
                 );
               case 'searchterms':
