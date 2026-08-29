@@ -71,36 +71,30 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
       label: 'Preview',
       align: 'left',
       render: r => {
-        // Preview quality fallback chain:
-        //   1. Instagram embed — real ad video/carousel with actual quality,
-        //      playable inline. Works because atWork's ads cross-post to IG
-        //      and IG posts are publicly embeddable (unlike FB dark posts).
-        //   2. image_url — high-res static image (image ads only)
-        //   3. video_thumbnail_array[0] — Meta's 160×160 video poster
-        //   4. thumbnail_url — last resort, 64px signed URL
-        const igMediaId = r.effective_instagram_media_id as string | null | undefined;
-        if (igMediaId) {
-          // Public IG-media-id → shortcode conversion (base64-alphabet chunking).
-          const ALPH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-          const ZERO = BigInt(0), SIX_MASK = BigInt(63), SIX = BigInt(6);
-          let n = BigInt(igMediaId), sc = '';
-          while (n > ZERO) { sc = ALPH[Number(n & SIX_MASK)] + sc; n >>= SIX; }
-          if (sc) {
-            return (
-              <iframe
-                src={`https://www.instagram.com/p/${sc}/embed/?cr=1`}
-                loading="lazy"
-                style={{ width: 280, height: 380, border: '1px solid #e5e7eb', display: 'block' }}
-                title="Instagram post preview"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                scrolling="no"
-              />
-            );
-          }
-        }
-        let src: string | null = (r.image_url as string | null | undefined) ?? null;
+        // Preview scenarios (all handled explicitly, nothing broken shipped):
+        //
+        //   A. IMAGE AD with high-res image_url — show image full size (works
+        //      great, Facebook CDN URLs are publicly hotlinkable)
+        //   B. VIDEO AD with real poster content — show the 160x160 video
+        //      poster + VIDEO badge overlay
+        //   C. VIDEO AD with brand-only poster (solid teal, atWork's videos
+        //      open on a brand intro) — same treatment; the badge tells the
+        //      user it's a video not a broken image
+        //   D. LAST-RESORT thumbnail_url (64px) — same treatment
+        //   E. NO preview data — show a labeled placeholder card
+        //
+        // What we DON'T do (and can't):
+        //   - Facebook post embed: atWork's ads are dark posts, FB returns
+        //     "no longer available" on the public plugins/post.php endpoint
+        //   - Instagram embed: effective_instagram_media_id is Meta's ads-
+        //     context 17-digit ID, not Instagram's internal 19-digit PK that
+        //     shortcodes derive from. No public conversion exists.
+        //   - Frame-by-frame video posters: needs Meta Marketing API OAuth
         const objType = String(r.object_type ?? '').toUpperCase();
         const isVideo = objType === 'VIDEO' || Boolean(r.video_thumbnail_array);
+        const mediaType = isVideo ? 'VIDEO' : (r.media_type ? String(r.media_type).toUpperCase() : 'IMAGE');
+
+        let src: string | null = (r.image_url as string | null | undefined) ?? null;
         if (!src) {
           const arr = r.video_thumbnail_array as string | null | undefined;
           if (arr) {
@@ -113,7 +107,18 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
           }
         }
         if (!src) src = (r.thumbnail_url as string | null | undefined) ?? null;
-        if (!src) return '—';
+
+        // Scenario E: nothing at all
+        if (!src) {
+          return (
+            <div style={{ width: 200, height: 200, backgroundColor: '#f9fafb', border: `1px solid ${colors.border.default}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, color: colors.text.secondary, fontSize: typography.fontSize.xs, textAlign: 'center', padding: spacing.sm }}>
+              <div style={{ fontSize: 22 }}>◇</div>
+              <div>No preview<br />available</div>
+              <div style={{ opacity: 0.6 }}>{mediaType}</div>
+            </div>
+          );
+        }
+        // Scenarios A–D: image with badge if video
         return (
           <div style={{ position: 'relative', width: 200, height: 200, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -121,6 +126,8 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
               src={src}
               alt="Ad creative"
               loading="lazy"
+              // scale-down: render at native px when source is smaller than the
+              // 200px box (no upscale blur on 160px video posters).
               style={{ width: '100%', height: '100%', objectFit: 'scale-down', display: 'block' }}
             />
             {isVideo && (
