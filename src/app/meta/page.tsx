@@ -354,6 +354,7 @@ export default function MetaPage() {
     cpm:         dailyRows.map(d => d.cpm                  ?? 0),
     leads:       dailyRows.map(d => d.leads                ?? 0),
     conversions: dailyRows.map(d => d.conversions          ?? 0),
+    convRate:    dailyRows.map(d => d.clicks ? ((d.conversions ?? 0) / d.clicks) * 100 : 0),
     cpa:         dailyRows.map(d => d.cost_per_conversion  ?? 0),
     videoViews:  dailyRows.map(d => d.video_views          ?? 0),
   }), [dailyRows]);
@@ -362,6 +363,11 @@ export default function MetaPage() {
   // definition; a summed daily average would double-count returning users).
   const frequency      = t?.reach ? (t.impressions / t.reach) : null;
   const priorFrequency = priorTotals?.reach ? (priorTotals.impressions / priorTotals.reach) : null;
+
+  // Conversion Rate = conversions / clicks × 100. Meta-attributed
+  // conversions per META_CONVERSION_DEFINITION over paid clicks.
+  const convRate      = t?.clicks ? ((t.conversions ?? 0) / t.clicks) * 100 : null;
+  const priorConvRate = priorTotals?.clicks ? ((priorTotals.conversions ?? 0) / priorTotals.clicks) * 100 : null;
 
   // Daily Summary totals row — sums over the full range, matching the totals
   // convention (visible rows are paginated to 10 via Show More; totals are
@@ -516,7 +522,7 @@ export default function MetaPage() {
       </div>
 
       {/* ── Blue scorecards (atWork roster: summed range totals + ratios) ── */}
-      {/* 11 tiles laid out 6+5. Every tile carries a period-over-period
+      {/* 12 tiles laid out 6×2. Every tile carries a period-over-period
           delta below the value; per-metric goodDirection tells the card
           how to color the arrow (up-good for volume/efficiency, down-good
           for unit costs, null for Spend where a bigger number isn't
@@ -540,6 +546,7 @@ export default function MetaPage() {
         <BFScorecard title="CPC"                value={fmtMoney(t?.cpc                ?? null)} sparklineData={spark.cpc}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpc,                 priorTotals?.cpc),                 goodDirection: 'down' }} />
         <BFScorecard title="CPM"                value={fmtMoney(t?.cpm                ?? null)} sparklineData={spark.cpm}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpm,                 priorTotals?.cpm),                 goodDirection: 'down' }} />
         <BFScorecard title="Conversions"        value={fmtInt(t?.conversions          ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" delta={{ pct: deltaPct(t?.conversions,         priorTotals?.conversions),         goodDirection: 'up'   }} />
+        <BFScorecard title="Conversion Rate"    value={fmtCtr(convRate)}                         sparklineData={spark.convRate}    color="blue" size="small" delta={{ pct: deltaPct(convRate,               priorConvRate),                    goodDirection: 'up'   }} />
         <BFScorecard title="Cost per Conversion"value={fmtMoney(t?.cost_per_conversion?? null)} sparklineData={spark.cpa}         color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_conversion, priorTotals?.cost_per_conversion), goodDirection: 'down' }} />
         <BFScorecard title="Video Views"        value={fmtInt(t?.video_views          ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" delta={{ pct: deltaPct(t?.video_views,         priorTotals?.video_views),         goodDirection: 'up'   }} />
       </div>
