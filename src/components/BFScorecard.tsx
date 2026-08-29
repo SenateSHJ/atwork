@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import {
   ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
-import { colors, typography, borderRadius } from '../tokens';
+import { colors, typography, borderRadius, shadow } from '../tokens';
 
 interface BFScorecardProps {
   title:         string;
@@ -51,6 +51,7 @@ export function BFScorecard({
         backgroundColor: bg,
         border: `2px solid ${colors.ui.black}`,
         borderRadius: borderRadius.md,
+        boxShadow: shadow.md,
         padding: size === 'small' ? '12px' : '16px',
         width: w,
         height: h,

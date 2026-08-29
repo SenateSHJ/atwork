@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { format, parseISO } from 'date-fns';
 import { FallbackBanner, readBannerDismissed, persistBannerDismissed } from '@/components/FallbackBanner';
-import { colors, typography, spacing } from '@/tokens';
+import { colors, typography, spacing, shadow } from '@/tokens';
 import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
@@ -579,7 +579,7 @@ export default function MetaPage() {
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
             {highlights.map(h => (
-              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card }}>
+              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
                 <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                   {h.label}
                 </div>
