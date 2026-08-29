@@ -631,9 +631,11 @@ export default function MetaPage() {
           })()}
         </ChartContainer>
 
-        {/* Three 1/3-width horizontal bar charts: Video Watch Funnel, Devices,
-            Placements. All account-level. Label widths trimmed to fit 1/3
-            columns. Wraps to stacked when a column can't hold 260px. */}
+        {/* 2×2 bar-chart grid: Video Watch Funnel, Devices, Placements,
+            Day of Week. All account-level. Half-width per panel on desktop
+            (calc(50% - 12px) matches the 24px gap), stacks below ~640px.
+            Day of Week has its own internal renderer since it shows 3 stats
+            per row instead of 2 and uses shorter weekday labels. */}
         {(() => {
           const funnelMax = videoWatch.funnel.reduce((m, r) => Math.max(m, r.count), 0);
           const deviceMax = devicesData.devices.reduce((m, r) => Math.max(m, r.impressions), 0);
@@ -680,7 +682,7 @@ export default function MetaPage() {
           return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
               {panels.map(panel => (
-                <div key={panel.title} style={{ flex: '1 1 260px', minWidth: 0 }}>
+                <div key={panel.title} style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
                   <ChartContainer title={panel.title}>
                     <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                       {panel.rows.length === 0 || panel.rows.every(r => r.barPct === 0) ? (
@@ -729,37 +731,38 @@ export default function MetaPage() {
                   </ChartContainer>
                 </div>
               ))}
+              {dowData.some(d => d.spend > 0) && (
+                <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+                  <ChartContainer title="Performance by Day of Week">
+                    <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                      {(() => {
+                        const maxSpend = Math.max(...dowData.map(d => d.spend));
+                        return dowData.map(d => {
+                          const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
+                          return (
+                            <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                              <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                                {d.weekday}
+                              </div>
+                              <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                                <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                              </div>
+                              <div style={{ width: 220, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                                <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
+                                <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
+                                <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </ChartContainer>
+                </div>
+              )}
             </div>
           );
         })()}
-
-        {dowData.some(d => d.spend > 0) && (
-          <ChartContainer title="Performance by Day of Week">
-            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {(() => {
-                const maxSpend = Math.max(...dowData.map(d => d.spend));
-                return dowData.map(d => {
-                  const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
-                  return (
-                    <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                      <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
-                        {d.weekday}
-                      </div>
-                      <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
-                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
-                      </div>
-                      <div style={{ width: 220, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
-                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
-                        <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
-                        <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </ChartContainer>
-        )}
 
         {/* One consolidated tabbed table — folds Campaigns / Ad Sets / Ads /
             Daily Summary / Engagement / Targeting into a single card. The
