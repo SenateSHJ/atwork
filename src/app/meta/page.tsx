@@ -72,16 +72,22 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
       align: 'left',
       render: r => {
         // Preview quality fallback chain:
-        //   1. image_url — high-res static image (only populated for image ads;
-        //      NULL for videos which is atWork's active-campaign case)
-        //   2. video_thumbnail_array[0] — Meta's 160x160 video poster (2.5×
-        //      more pixels than thumbnail_url). Stored as JSON string
+        //   1. image_url — high-res static image (image ads only; NULL for
+        //      video ads which is atWork's active case)
+        //   2. video_thumbnail_array[0] — Meta's 160x160 video poster
+        //      (a JSON array of frame URLs). Falls back through the array
+        //      because some entries are same-frame variants
         //   3. thumbnail_url — last resort, 64px signed URL from Meta CDN
         //
-        // Facebook post embed can't be used here — atWork's ads are all
-        // dark posts (unpublished in-Ads-Manager creatives) which return
-        // "post no longer available" via the public embed endpoint.
+        // Note: atWork's video ads open on a solid brand-teal intro frame,
+        // so many video posters here look like plain teal squares. That's
+        // Meta showing the real first frame of the video. A higher-quality
+        // poster or the actual video preview isn't available through Weld —
+        // dark posts can't be embedded via FB's public post iframe and
+        // resolving video URNs to CDN URLs needs Meta Marketing API OAuth.
         let src: string | null = (r.image_url as string | null | undefined) ?? null;
+        const objType = String(r.object_type ?? '').toUpperCase();
+        const isVideo = objType === 'VIDEO' || Boolean(r.video_thumbnail_array);
         if (!src) {
           const arr = r.video_thumbnail_array as string | null | undefined;
           if (arr) {
@@ -90,22 +96,33 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
               if (Array.isArray(parsed) && parsed.length && typeof parsed[0] === 'string') {
                 src = parsed[0];
               }
-            } catch { /* string wasn't valid JSON — fall through */ }
+            } catch { /* fall through */ }
           }
         }
         if (!src) src = (r.thumbnail_url as string | null | undefined) ?? null;
         if (!src) return '—';
         return (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={src}
-            alt="Ad creative"
-            loading="lazy"
-            // objectFit:'scale-down' displays at native resolution when the
-            // source is smaller than the box — no upscale-blur on the 160x160
-            // video thumbnails Meta ships. Larger sources still shrink to fit.
-            style={{ width: 200, height: 200, objectFit: 'scale-down', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', display: 'block' }}
-          />
+          <div style={{ position: 'relative', width: 200, height: 200, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt="Ad creative"
+              loading="lazy"
+              style={{ width: '100%', height: '100%', objectFit: 'scale-down', display: 'block' }}
+            />
+            {isVideo && (
+              <div style={{
+                position: 'absolute', bottom: 6, left: 6,
+                padding: '2px 6px',
+                fontSize: typography.fontSize.xs,
+                fontWeight: typography.fontWeight.semibold,
+                color: '#fff',
+                backgroundColor: 'rgba(0,0,0,0.65)',
+                letterSpacing: '0.05em',
+                pointerEvents: 'none',
+              }}>▶ VIDEO</div>
+            )}
+          </div>
         );
       },
     });
