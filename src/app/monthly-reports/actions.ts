@@ -10,9 +10,77 @@ import { fetchAtWorkMetaPeriod }    from './adapters/meta';
 import { fetchAtWorkGadsPeriod }    from './adapters/gads';
 import { fetchAtWorkWebsitePeriod } from './adapters/website';
 import { atworkMonthLabel, priorMonth } from './adapters/config';
-import { ATWORK_CONFIG } from './adapters/client-config';
+import { loadConfig } from '@prism/executive-summaries';
+import type { ClientConfig } from '@prism/executive-summaries';
+import { supabaseServer } from '@/lib/supabase/server';
 import { buildHistory, computeComparisonStats } from './adapters/helpers';
-import { compose, SPINE_RULES, type NormalisedPeriod } from '@prism/executive-summaries';
+
+const CLIENT_SLUG = 'atwork';
+import {
+  compose,
+  DERIVED_RULES,
+  type NormalisedPeriod,
+  // Every describe*/flag* rule PRISM ships. Assembled locally rather
+  // than pulled through the SPINE_RULES aggregate: rule firing is
+  // arbitrated at engine time by config_rule + the K-rule dependency
+  // gates, and passing a hand-curated subset bypasses those gates.
+  // If PRISM adds a rule, add it to ATWORK_RULES below.
+  describeAnchor,
+  describeOutcomeDefinition,
+  describeGrowthComposition,
+  describeGrowthCompositionWeb,
+  describeOutcomeDecomposition,
+  describeOutcomeDecompositionWeb,
+  describeSustainedTrend,
+  describeTrendBreak,
+  describeStatisticallySignificantRateChange,
+  flagSampleSizeInsufficient,
+  flagDataCliff,
+  describeAnchorDeltas,
+  describeAnchorWeb,
+  describeAnchorDeltasWeb,
+  describePagesPerSession,
+  describeSpendDecomposition,
+  describeSeasonalNormalcy,
+  describeSeasonalDeviation,
+  describeAcceleration,
+  describeDeceleration,
+  describeLatestStepSurge,
+  describeTrendReturnedToPriorLevel,
+  describeOutlierDay,
+  describeSpendPulse,
+  flagAttributionWindowChangedBetweenPeriods,
+  flagAttributionWindowSuspectedDrift,
+} from '@prism/executive-summaries';
+
+const ATWORK_RULES = [
+  describeAnchor,
+  describeOutcomeDefinition,
+  describeGrowthComposition,
+  describeGrowthCompositionWeb,
+  describeOutcomeDecomposition,
+  describeOutcomeDecompositionWeb,
+  describeSustainedTrend,
+  describeTrendBreak,
+  describeStatisticallySignificantRateChange,
+  flagSampleSizeInsufficient,
+  flagDataCliff,
+  describeAnchorDeltas,
+  describeAnchorWeb,
+  describeAnchorDeltasWeb,
+  describePagesPerSession,
+  describeSpendDecomposition,
+  describeSeasonalNormalcy,
+  describeSeasonalDeviation,
+  describeAcceleration,
+  describeDeceleration,
+  describeLatestStepSurge,
+  describeTrendReturnedToPriorLevel,
+  describeOutlierDay,
+  describeSpendPulse,
+  flagAttributionWindowChangedBetweenPeriods,
+  flagAttributionWindowSuspectedDrift,
+];
 
 export interface SectionReport {
   paragraphs:    string[];
@@ -53,11 +121,18 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
     throw new Error(`fetchMonthlyReport: month must be YYYY-MM, got "${month}"`);
   }
   const prior = priorMonth(month);
+  // loadConfig hits reporting.* and hydrates the ClientConfig at request
+  // time. No static ATWORK_CONFIG fallback here; if the seed has not run,
+  // loadConfig throws and the error surfaces as an empty section rather
+  // than a silent render against defaults.
   const [
+    config,
     metaCur, metaPri, metaHist,
     gadsCur, gadsPri, gadsHist,
     webCur,  webPri,  webHist,
   ] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    loadConfig({ supabase: supabaseServer() as unknown as any, clientSlug: CLIENT_SLUG }),
     fetchAtWorkMetaPeriod(month),    fetchAtWorkMetaPeriod(prior),    buildHistory(fetchAtWorkMetaPeriod,    month),
     fetchAtWorkGadsPeriod(month),    fetchAtWorkGadsPeriod(prior),    buildHistory(fetchAtWorkGadsPeriod,    month),
     fetchAtWorkWebsitePeriod(month), fetchAtWorkWebsitePeriod(prior), buildHistory(fetchAtWorkWebsitePeriod, month),
@@ -68,9 +143,9 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
     monthLabel: atworkMonthLabel(month),
     prior,
     priorLabel: atworkMonthLabel(prior),
-    meta:    composeSection(metaCur, metaPri, metaHist, 'Meta Ads'),
-    gads:    composeSection(gadsCur, gadsPri, gadsHist, 'Google Ads'),
-    website: composeSection(webCur,  webPri,  webHist,  'Website'),
+    meta:    composeSection(metaCur, metaPri, metaHist, 'Meta Ads',   config),
+    gads:    composeSection(gadsCur, gadsPri, gadsHist, 'Google Ads', config),
+    website: composeSection(webCur,  webPri,  webHist,  'Website',    config),
   };
 }
 
@@ -79,6 +154,7 @@ function composeSection(
   prior:   NormalisedPeriod | null,
   history: NormalisedPeriod[],
   label:   string,
+  config:  ClientConfig,
 ): SectionReport {
   if (!current) {
     return {
@@ -91,12 +167,10 @@ function composeSection(
     current.metrics.spend,
     current.metrics.conversions,
   );
-  // New engine signature: compose({ comparison, rules, section }) -> { section_report, findings, errors }.
-  // Extract .section_report and map its Paragraph[] to the atWork page's
-  // simpler { paragraphs: string[], basisSubtitle } shape.
   const output = compose({
-    comparison: { current, prior, yoy: null, baseline: null, history, stats, config: ATWORK_CONFIG, change_events: [] },
-    rules:      SPINE_RULES,
+    comparison: { current, prior, yoy: null, baseline: null, history, stats, config, change_events: [] },
+    rules:      ATWORK_RULES,
+    derived:    DERIVED_RULES,
     section:    label,
   });
   return {

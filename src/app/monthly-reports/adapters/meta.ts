@@ -11,7 +11,7 @@ import { computePeriodStats } from './helpers';
 
 const CHANNEL = { id: 'meta', display: 'Meta Ads' };
 const CONVERSION_DEFINITION =
-  'Meta-attributed contact_website events (form fill or contact click on the website).';
+  "Meta pixel lead events on the account's default 7-day click / 1-day view window.";
 
 export async function fetchAtWorkMetaPeriod(month: string): Promise<NormalisedPeriod | null> {
   const range = monthBounds(month);
@@ -23,16 +23,16 @@ export async function fetchAtWorkMetaPeriod(month: string): Promise<NormalisedPe
 
   const sb = supabaseServer();
   const { data: convRows } = await sb.schema('silver').from('meta_ad_conversion_insights')
-    .select('campaign_id,contact_website,video_view')
+    .select('campaign_id,lead,video_view')
     .gte('date', range.from).lte('date', range.to);
 
   let totalConversions = 0;
   let totalVideoViews = 0;
   const convByCamp  = new Map<string, number>();
   const videoByCamp = new Map<string, number>();
-  for (const r of (convRows ?? []) as Array<{ campaign_id: string; contact_website: number | null; video_view: number | null }>) {
-    const cw = Number(r.contact_website || 0);
-    const vv = Number(r.video_view      || 0);
+  for (const r of (convRows ?? []) as Array<{ campaign_id: string; lead: number | null; video_view: number | null }>) {
+    const cw = Number(r.lead || 0);
+    const vv = Number(r.video_view || 0);
     totalConversions += cw;
     totalVideoViews  += vv;
     if (cw) convByCamp.set (r.campaign_id, (convByCamp.get (r.campaign_id) ?? 0) + cw);
