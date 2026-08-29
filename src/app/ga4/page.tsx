@@ -89,12 +89,6 @@ const BROWSER_OS_COLUMNS: DSTColumn[] = [
 // Custom Events columns are built inside the component (leadEventColumns
 // below) because the bar cell needs to know the max-count in the current
 // dataset to size proportionally.
-const GEOGRAPHY_COLUMNS: DSTColumn[] = [
-  { key: 'country', label: 'Country', align: 'left' },
-  { key: 'users',   label: 'Users',   numeric: true, render: r => Number(r.users || 0).toLocaleString() },
-  { key: 'sessions',label: 'Sessions',numeric: true, render: r => Number(r.sessions || 0).toLocaleString() },
-];
-
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function Ga4Page() {
@@ -118,7 +112,7 @@ export default function Ga4Page() {
 
   type PerfTab =
     | 'daily' | 'traffic' | 'toppages' | 'browserOs'
-    | 'leadEvents' | 'landingPages' | 'geography';
+    | 'leadEvents' | 'landingPages';
   const [perfTab, setPerfTab] = useState<PerfTab>('daily');
 
   type TrendTab =
@@ -368,15 +362,6 @@ export default function Ga4Page() {
       This is a connector capability limitation, not a sync gap.
     </div>
   );
-  const geographyNote = (
-    <div style={noteBox}>
-      Country and city are unavailable. Verified in the atWork BigQuery
-      dataset — none of the seven synced GA4 tables carry a country / city /
-      region / geo_* / location_* column. Weld&apos;s GA4 connector does not
-      offer a geographic report for this property.
-    </div>
-  );
-
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: `${spacing.md} ${spacing.lg}` }}>
       <h2 style={{
@@ -675,7 +660,6 @@ export default function Ga4Page() {
               { key: 'browserOs',    label: 'Browser & OS'    },
               { key: 'leadEvents',   label: 'Custom Events'   },
               { key: 'landingPages', label: 'Landing Pages'   },
-              { key: 'geography',    label: 'Geography'       },
             ] as { key: PerfTab; label: string }[]).map(opt => {
               const active = perfTab === opt.key;
               return (
@@ -752,17 +736,6 @@ export default function Ga4Page() {
                       paginate={20}
                     />
                     {landingPagesNote}
-                  </>
-                );
-              case 'geography':
-                return (
-                  <>
-                    <DailySummaryTable
-                      data={[] as unknown as Record<string, unknown>[]}
-                      columns={GEOGRAPHY_COLUMNS}
-                      paginate={20}
-                    />
-                    {geographyNote}
                   </>
                 );
               case 'daily':
