@@ -388,6 +388,7 @@ export interface EntityRow {
   thumbnail_url?:      string | null;
   video_thumbnail_array?: string | null;  // JSON string of 160×160 video posters (Weld ships as string)
   effective_object_story_id?: string | null;   // {page_id}_{post_id} — powers FB post embed
+  effective_instagram_media_id?: string | null;  // IG media id — convert to shortcode for public embed
   creative_title?:     string | null;
   creative_body?:      string | null;
   call_to_action_type?: string | null;
@@ -547,6 +548,7 @@ async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: Met
         thumbnail_url:       a.thumbnail_url ?? null,
         video_thumbnail_array: a.video_thumbnail_array ?? null,
         effective_object_story_id: a.effective_object_story_id ?? null,
+        effective_instagram_media_id: a.effective_instagram_media_id ?? null,
         creative_title:      a.creative_title ?? null,
         creative_body:       a.creative_body ?? null,
         call_to_action_type: a.call_to_action_type ?? null,

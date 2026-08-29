@@ -72,19 +72,31 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
       align: 'left',
       render: r => {
         // Preview quality fallback chain:
-        //   1. image_url — high-res static image (image ads only; NULL for
-        //      video ads which is atWork's active case)
-        //   2. video_thumbnail_array[0] — Meta's 160x160 video poster
-        //      (a JSON array of frame URLs). Falls back through the array
-        //      because some entries are same-frame variants
-        //   3. thumbnail_url — last resort, 64px signed URL from Meta CDN
-        //
-        // Note: atWork's video ads open on a solid brand-teal intro frame,
-        // so many video posters here look like plain teal squares. That's
-        // Meta showing the real first frame of the video. A higher-quality
-        // poster or the actual video preview isn't available through Weld —
-        // dark posts can't be embedded via FB's public post iframe and
-        // resolving video URNs to CDN URLs needs Meta Marketing API OAuth.
+        //   1. Instagram embed — real ad video/carousel with actual quality,
+        //      playable inline. Works because atWork's ads cross-post to IG
+        //      and IG posts are publicly embeddable (unlike FB dark posts).
+        //   2. image_url — high-res static image (image ads only)
+        //   3. video_thumbnail_array[0] — Meta's 160×160 video poster
+        //   4. thumbnail_url — last resort, 64px signed URL
+        const igMediaId = r.effective_instagram_media_id as string | null | undefined;
+        if (igMediaId) {
+          // Public IG-media-id → shortcode conversion (base64-alphabet chunking).
+          const ALPH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+          let n = BigInt(igMediaId), sc = '';
+          while (n > 0n) { sc = ALPH[Number(n & 63n)] + sc; n >>= 6n; }
+          if (sc) {
+            return (
+              <iframe
+                src={`https://www.instagram.com/p/${sc}/embed/?cr=1`}
+                loading="lazy"
+                style={{ width: 280, height: 380, border: '1px solid #e5e7eb', display: 'block' }}
+                title="Instagram post preview"
+                allow="autoplay; encrypted-media; picture-in-picture"
+                scrolling="no"
+              />
+            );
+          }
+        }
         let src: string | null = (r.image_url as string | null | undefined) ?? null;
         const objType = String(r.object_type ?? '').toUpperCase();
         const isVideo = objType === 'VIDEO' || Boolean(r.video_thumbnail_array);

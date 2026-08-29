@@ -260,6 +260,7 @@ const creatives = bq(`
     video_thumbnail_array,
     title, body, call_to_action_type, link_url,
     effective_object_story_id,
+    effective_instagram_media_id,
     _weld_synced AS bq_synced
   FROM \`${PROJECT}.${DATASET}.creative\`
 `, 'creative')
@@ -278,8 +279,9 @@ const nCreatives = await upsert('meta_creative', creatives.map(r => ({
   body:                      r.body,
   call_to_action_type:       r.call_to_action_type,
   link_url:                  r.link_url,
-  effective_object_story_id: r.effective_object_story_id,
-  bq_synced:                 r.bq_synced || null,
+  effective_object_story_id:    r.effective_object_story_id,
+  effective_instagram_media_id: r.effective_instagram_media_id,
+  bq_synced:                    r.bq_synced || null,
 })), 'creative_id')
 console.log(`  ✓ ${nCreatives} creative rows upserted`)
 
