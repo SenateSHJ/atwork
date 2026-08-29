@@ -101,7 +101,10 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
             src={src}
             alt="Ad creative"
             loading="lazy"
-            style={{ width: 200, height: 200, objectFit: 'contain', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', display: 'block' }}
+            // objectFit:'scale-down' displays at native resolution when the
+            // source is smaller than the box — no upscale-blur on the 160x160
+            // video thumbnails Meta ships. Larger sources still shrink to fit.
+            style={{ width: 200, height: 200, objectFit: 'scale-down', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', display: 'block' }}
           />
         );
       },
