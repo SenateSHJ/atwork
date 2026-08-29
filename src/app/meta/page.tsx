@@ -27,10 +27,10 @@ const MetricTrendsChart = dynamic(
   },
 );
 import {
-  fetchAboveFold, fetchBelowFold, fetchEntityTables, getFilterOptions,
+  fetchAboveFold, fetchEntityTables, getFilterOptions,
   fetchEngagement, fetchVideoWatch, fetchTargeting, fetchDevices, fetchDayOfWeek,
   type MetaFilters, type MetaFilterOptions,
-  type Totals, type DailyRow, type AgencyRow, type TrendRow,
+  type Totals, type DailyRow, type AgencyRow,
   type EntityRow, type EngagementRow, type VideoWatchResult, type TargetingRow,
   type DevicesResult, type DayOfWeekRow,
 } from './actions';
@@ -167,14 +167,6 @@ const ENGAGEMENT_COLUMNS: DSTColumn[] = [
   { key: 'landing_page_view', label: 'Landing Page Views',numeric: true, render: r => Number(r.landing_page_view || 0).toLocaleString() },
 ];
 
-const DOW_COLUMNS: DSTColumn[] = [
-  { key: 'weekday',     label: 'Day',         align: 'left' },
-  { key: 'spend',       label: 'Spend',       numeric: true, render: r => `$${Math.round(Number(r.spend       || 0)).toLocaleString()}` },
-  { key: 'impressions', label: 'Impressions', numeric: true, render: r => Number(r.impressions || 0).toLocaleString() },
-  { key: 'clicks',      label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
-  { key: 'ctr',         label: 'CTR',         numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-];
-
 const TARGETING_COLUMNS: DSTColumn[] = [
   { key: 'adset_name',          label: 'Ad Set',              align: 'left' },
   { key: 'campaign_name',       label: 'Campaign',            align: 'left', render: r => String(r.campaign_name ?? '—') },
@@ -219,15 +211,21 @@ export default function MetaPage() {
   const [summaryTotals,    setSummaryTotals]    = useState<Totals | null>(null);
   const [dailyRows,        setDailyRows]        = useState<DailyRow[]>([]);
   const [, setAgencyPerf]                       = useState<AgencyRow[]>([]);
-  const [trendsData,       setTrendsData]       = useState<TrendRow[]>([]);
   const [entityCampaigns,  setEntityCampaigns]  = useState<EntityRow[]>([]);
   const [entityAdsets,     setEntityAdsets]     = useState<EntityRow[]>([]);
   const [entityAds,        setEntityAds]        = useState<EntityRow[]>([]);
   type PerfTab =
-    | 'campaigns' | 'adsets' | 'ads'
-    | 'engagement' | 'targeting'
-    | 'dow' | 'daily';
+    | 'campaigns' | 'adsets' | 'ads' | 'daily'
+    | 'engagement' | 'targeting';
   const [perfTab, setPerfTab] = useState<PerfTab>('campaigns');
+
+  // Trend chart tab — one card, many series. Data comes from dailyRows
+  // (already computed for the scorecards) rather than a separate fetch.
+  type TrendTab =
+    | 'spend_clicks' | 'impressions' | 'reach'
+    | 'ctr' | 'cpc' | 'cpm'
+    | 'conversions' | 'cpa' | 'video_views';
+  const [trendTab, setTrendTab] = useState<TrendTab>('spend_clicks');
   const [engagement,       setEngagement]       = useState<EngagementRow[]>([]);
   const [videoWatch,       setVideoWatch]       = useState<VideoWatchResult>({ videoViews: 0, funnel: [] });
   const [targeting,        setTargeting]        = useState<TargetingRow[]>([]);
@@ -252,17 +250,6 @@ export default function MetaPage() {
       setDailyRows(data.daily);
       setFallbackActive(data.fallback);
       setAgencyPerf(data.agencies);
-    } catch (e) { console.error(e); }
-  }, []);
-
-  // Trends charts live visually above the fold, so their data has to load with
-  // the above-fold pass — bundling them in the below-fold Promise.all made them
-  // wait for the slowest of six queries (~2s). Fire this in parallel with the
-  // above-fold fetch and setState the moment trends resolve.
-  const fetchTrendsCb = useCallback(async (sd: string, ed: string, f: MetaFilters) => {
-    try {
-      const data = await fetchBelowFold(sd, ed, f);
-      setTrendsData(data.trends);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -292,8 +279,7 @@ export default function MetaPage() {
 
   useEffect(() => {
     fetchAboveFoldCb(startDate, endDate, filters);
-    fetchTrendsCb   (startDate, endDate, filters);
-  }, [startDate, endDate, filters, fetchAboveFoldCb, fetchTrendsCb]);
+  }, [startDate, endDate, filters, fetchAboveFoldCb]);
   useEffect(() => {
     if (belowFoldRequested) { fetchBelowFoldCb(startDate, endDate, filters); }
   }, [startDate, endDate, filters, belowFoldRequested, fetchBelowFoldCb]);
@@ -308,6 +294,23 @@ export default function MetaPage() {
   }, [sentinelEl, belowFoldRequested]);
 
   const t = summaryTotals;
+
+  // Trend chart data — normalize dailyRows into the shape MetricTrendsChart
+  // wants (Recharts indexes by series.key, so we just need the right key names).
+  // Rename spend_aud → spend so the series config reads naturally.
+  const chartData = useMemo(() => dailyRows.map(d => ({
+    date:                d.date,
+    spend:               d.spend_aud,
+    impressions:         d.impressions,
+    clicks:              d.clicks,
+    reach:               d.reach,
+    ctr:                 d.ctr,
+    cpc:                 d.cpc,
+    cpm:                 d.cpm,
+    conversions:         d.conversions          ?? 0,
+    cost_per_conversion: d.cost_per_conversion  ?? null,
+    video_views:         d.video_views          ?? 0,
+  })), [dailyRows]);
 
   // Sparklines — widened; every tile gets a series. Null → 0 fallback per spec.
   const spark = useMemo(() => ({
@@ -550,28 +553,82 @@ export default function MetaPage() {
       {/* ── Full-width bottom sections ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
 
-        {/* Primary chart: Spend + Clicks on a dual axis. Spend (currency,
-            left) and Clicks (count, right) live on different scales, so each
-            gets its own y-axis. CPC and CPM removed as trend charts — both
-            appear as scorecards and per-day in Daily Summary. */}
-        <ChartContainer title="Metric Trends — Spend & Clicks">
-          <MetricTrendsChart
-            data={trendsData}
-            leftYUnit="currency"
-            rightYUnit="number"
-            series={[
-              { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
-              { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
-            ]}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Metric Trends — CTR">
-          <MetricTrendsChart
-            data={trendsData}
-            yUnit="percent"
-            series={[{ key: 'ctr', label: 'CTR', color: colors.chart[3] }]}
-          />
+        {/* One tabbed line-chart card — each tab renders a different series
+            or metric family against the same daily-aggregated source
+            (chartData, derived from dailyRows). Default is Spend & Clicks
+            on a dual axis; single-metric tabs use their natural unit. */}
+        <ChartContainer title="Metric Trends">
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>Metric:</span>
+            {([
+              { key: 'spend_clicks', label: 'Spend & Clicks' },
+              { key: 'impressions',  label: 'Impressions'    },
+              { key: 'reach',        label: 'Reach'          },
+              { key: 'ctr',          label: 'CTR'            },
+              { key: 'cpc',          label: 'CPC'            },
+              { key: 'cpm',          label: 'CPM'            },
+              { key: 'conversions',  label: 'Conversions'    },
+              { key: 'cpa',          label: 'CPA'            },
+              { key: 'video_views',  label: 'Video Views'    },
+            ] as { key: TrendTab; label: string }[]).map(opt => {
+              const active = trendTab === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setTrendTab(opt.key)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    fontFamily: typography.fontFamily.sans,
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    backgroundColor: active ? colors.brand.primary : '#fff',
+                    color: active ? colors.brand.primaryText : colors.text.primary,
+                    borderRadius: 0,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {(() => {
+            // Recharts consumes data[series.key] — chartData rows are looser
+            // than TrendRow but the chart doesn't care at runtime.
+            const data = chartData as unknown as import('@/app/meta/actions').TrendRow[];
+            switch (trendTab) {
+              case 'impressions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'impressions',         label: 'Impressions', color: colors.chart[1] }]} />;
+              case 'reach':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'reach',               label: 'Reach',       color: colors.chart[2] }]} />;
+              case 'ctr':
+                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'ctr',                 label: 'CTR',         color: colors.chart[3] }]} />;
+              case 'cpc':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpc',                 label: 'CPC',         color: colors.chart[4] }]} />;
+              case 'cpm':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpm',                 label: 'CPM',         color: colors.chartDark[0] }]} />;
+              case 'conversions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'conversions',         label: 'Conversions', color: colors.chartDark[1] }]} />;
+              case 'cpa':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cost_per_conversion', label: 'CPA',         color: colors.chartDark[2] }]} />;
+              case 'video_views':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'video_views',         label: 'Video Views', color: colors.chart[0] }]} />;
+              case 'spend_clicks':
+              default:
+                return (
+                  <MetricTrendsChart
+                    data={data}
+                    leftYUnit="currency"
+                    rightYUnit="number"
+                    series={[
+                      { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
+                      { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
+                    ]}
+                  />
+                );
+            }
+          })()}
         </ChartContainer>
 
         {/* Three 1/3-width horizontal bar charts: Video Watch Funnel, Devices,
@@ -676,10 +733,38 @@ export default function MetaPage() {
           );
         })()}
 
+        {dowData.some(d => d.spend > 0) && (
+          <ChartContainer title="Performance by Day of Week">
+            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              {(() => {
+                const maxSpend = Math.max(...dowData.map(d => d.spend));
+                return dowData.map(d => {
+                  const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
+                  return (
+                    <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                      <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                        {d.weekday}
+                      </div>
+                      <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                      </div>
+                      <div style={{ width: 220, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
+                        <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
+                        <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </ChartContainer>
+        )}
+
         {/* One consolidated tabbed table — folds Campaigns / Ad Sets / Ads /
-            Engagement / Targeting / Day of Week / Daily Summary into a
-            single card with a tab row. The 3-panel bar-chart row above
-            stays visual (Video Watch, Devices, Placements). */}
+            Daily Summary / Engagement / Targeting into a single card. The
+            bar-chart cards above stay visual (Video Watch, Devices,
+            Placements, Day of Week). */}
         <ChartContainer title="Performance">
           <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
             <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>View:</span>
@@ -687,10 +772,9 @@ export default function MetaPage() {
               { key: 'campaigns',  label: 'Campaigns'     },
               { key: 'adsets',     label: 'Ad Sets'       },
               { key: 'ads',        label: 'Ads'           },
+              { key: 'daily',      label: 'Daily Summary' },
               { key: 'engagement', label: 'Engagement'    },
               { key: 'targeting',  label: 'Targeting'     },
-              { key: 'dow',        label: 'Day of Week'   },
-              { key: 'daily',      label: 'Daily Summary' },
             ] as { key: PerfTab; label: string }[]).map(opt => {
               const active = perfTab === opt.key;
               return (
@@ -767,14 +851,6 @@ export default function MetaPage() {
                     columns={TARGETING_COLUMNS}
                     sortable
                     initialSort={{ key: 'spend', direction: 'desc' }}
-                    paginate={20}
-                  />
-                );
-              case 'dow':
-                return (
-                  <DailySummaryTable
-                    data={dowData as unknown as DailyRow[]}
-                    columns={DOW_COLUMNS}
                     paginate={20}
                   />
                 );
