@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { FallbackBanner, readBannerDismissed, persistBannerDismissed } from '@/components/FallbackBanner';
-import { colors, typography, spacing } from '@/tokens';
+import { colors, typography, spacing, shadow } from '@/tokens';
 import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
@@ -15,10 +15,9 @@ const MetricTrendsChart = dynamic(
 );
 import { DailySummaryTable, type DSTColumn } from '@/components/hq/DailySummaryTable';
 import {
-  fetchAboveFold, fetchBelowFold, fetchEntityTables, fetchTargetingSections, getFilterOptions,
+  fetchAboveFold, fetchEntityTables, getFilterOptions,
   type GadsFilters, type GadsFilterOptions,
   type GadsEntityRow, type GadsDailyRow,
-  type GadsProximityRow,
 } from './actions';
 import type { Totals, DailyRow, AgencyRow, TrendRow } from '../meta/actions';
 import { GADS_CONVERSION_DEFINITION } from './constants';
@@ -41,6 +40,15 @@ const fmtDate  = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
     ? format(parseISO(v), 'd-MMM-yyyy')
     : String(v ?? '');
+
+// Period-over-period % change. Returns null when there's no baseline
+// (prior=0) — the scorecard renders "—" instead of "▲ Infinity%".
+function deltaPct(curr: number | null | undefined, prior: number | null | undefined): number | null {
+  const c = Number(curr ?? 0);
+  const p = Number(prior ?? 0);
+  if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null;
+  return ((c - p) / p) * 100;
+}
 
 // Entity table columns — mirrors the Meta pattern, adapted to Google Ads
 // (no reach, no video_views; adds Conversion Rate as the 9th metric).
@@ -66,18 +74,7 @@ function entityColumns(nameLabel: string, opts?: { withCampaign?: boolean; withA
   return cols;
 }
 
-// Campaign proximity — 1 row per radius ring per campaign.
-const _PROXIMITY_COLUMNS: DSTColumn[] = [
-  { key: 'campaign',        label: 'Campaign',    align: 'left' },
-  { key: 'campaign_status', label: 'Status',      align: 'left', render: r => String(r.campaign_status ?? '—') },
-  { key: 'radius',          label: 'Radius',      numeric: true, render: r => `${Number(r.radius || 0).toFixed(1)} ${String(r.radius_units ?? '')}`.trim() },
-  { key: 'city',            label: 'City',        align: 'left', render: r => String(r.city ?? '—') },
-  { key: 'province',        label: 'Province',    align: 'left', render: r => String(r.province ?? '—') },
-  { key: 'country',         label: 'Country',     align: 'left', render: r => String(r.country ?? '—') },
-  { key: 'postal_code',     label: 'Postal Code', align: 'left', render: r => String(r.postal_code ?? '—') },
-];
-
-// Daily Summary columns — Date + all 9 scorecard metrics.
+// Daily Summary columns — Date + all scorecard metrics.
 const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'date',                label: 'Date',        align: 'left', render: r => fmtDate(r.date) },
   { key: 'spend_aud',           label: 'Spend',       numeric: true, render: r => `$${Math.round(Number(r.spend_aud   || 0)).toLocaleString()}` },
@@ -102,17 +99,27 @@ export default function GoogleAdsPage() {
   const [filterOptions, setFilterOptions] = useState<GadsFilterOptions>({ campaigns: [], adGroups: [], networks: [] });
 
   const [summaryTotals,    setSummaryTotals]    = useState<Totals | null>(null);
+  const [priorTotals,      setPriorTotals]      = useState<Totals | null>(null);
   const [dailyRows,        setDailyRows]        = useState<GadsDailyRow[]>([]);
   const [, setAgencyPerf]                       = useState<AgencyRow[]>([]);
-  const [trendsData,       setTrendsData]       = useState<TrendRow[]>([]);
   const [entityCampaigns,  setEntityCampaigns]  = useState<GadsEntityRow[]>([]);
   const [entityAdGroups,   setEntityAdGroups]   = useState<GadsEntityRow[]>([]);
   const [entityAds,        setEntityAds]        = useState<GadsEntityRow[]>([]);
   const [entityKeywords,   setEntityKeywords]   = useState<GadsEntityRow[]>([]);
   const [entitySearchTerms,setEntitySearchTerms]= useState<GadsEntityRow[]>([]);
-  const [_proximity,       _setProximity]       = useState<GadsProximityRow[]>([]);
   const [fallbackActive,   setFallbackActive]   = useState(false);
   const [bannerDismissed,  setBannerDismissed]  = useState(readBannerDismissed);
+
+  type PerfTab =
+    | 'campaigns' | 'adgroups' | 'ads' | 'daily'
+    | 'keywords' | 'searchterms' | 'assetgroups' | 'audience';
+  const [perfTab, setPerfTab] = useState<PerfTab>('campaigns');
+
+  type TrendTab =
+    | 'spend_clicks' | 'impressions'
+    | 'ctr' | 'cpc' | 'cpm'
+    | 'conversions' | 'cpa' | 'conv_rate' | 'conv_value' | 'roas';
+  const [trendTab, setTrendTab] = useState<TrendTab>('spend_clicks');
 
   useEffect(() => {
     getFilterOptions(startDate, endDate).then(setFilterOptions).catch(console.error);
@@ -131,26 +138,35 @@ export default function GoogleAdsPage() {
     } catch (e) { console.error(e); }
   }, []);
 
+  // Prior-period fetch — same length immediately before the current range,
+  // filters preserved. Powers the delta arrows on every scorecard.
+  const fetchPriorCb = useCallback(async (sd: string, ed: string, f: GadsFilters) => {
+    try {
+      const currStart = new Date(sd).getTime();
+      const currEnd   = new Date(ed).getTime();
+      const lenMs     = currEnd - currStart;
+      const priorEnd  = new Date(currStart - 86_400_000);
+      const priorStart = new Date(priorEnd.getTime() - lenMs);
+      const data = await fetchAboveFold(toIso(priorStart), toIso(priorEnd), f);
+      setPriorTotals(data.totals);
+    } catch (e) { console.error(e); }
+  }, []);
+
   const fetchBelowFoldCb = useCallback(async (sd: string, ed: string, f: GadsFilters) => {
     try {
-      const [data, entities, targeting] = await Promise.all([
-        fetchBelowFold(sd, ed, f),
-        fetchEntityTables(sd, ed, f),
-        fetchTargetingSections(sd, ed),
-      ]);
-      setTrendsData(data.trends);
+      const entities = await fetchEntityTables(sd, ed, f);
       setEntityCampaigns(entities.campaigns);
       setEntityAdGroups(entities.adGroups);
       setEntityAds(entities.ads);
       setEntityKeywords(entities.keywords);
       setEntitySearchTerms(entities.searchTerms);
-      _setProximity(targeting.proximity);
     } catch (e) { console.error(e); }
   }, []);
 
   useEffect(() => {
     fetchAboveFoldCb(startDate, endDate, filters);
-  }, [startDate, endDate, filters, fetchAboveFoldCb]);
+    fetchPriorCb    (startDate, endDate, filters);
+  }, [startDate, endDate, filters, fetchAboveFoldCb, fetchPriorCb]);
   useEffect(() => {
     if (belowFoldRequested) fetchBelowFoldCb(startDate, endDate, filters);
   }, [startDate, endDate, filters, belowFoldRequested, fetchBelowFoldCb]);
@@ -166,6 +182,16 @@ export default function GoogleAdsPage() {
 
   const t = summaryTotals;
 
+  // ROAS = conversion_value / spend * 100. Google Ads convention: return
+  // as percentage (300% = $3 back per $1 spent). Skip when spend is 0.
+  const roas      = t?.spend_aud             ? ((t.conversion_value ?? 0) / t.spend_aud) * 100          : null;
+  const priorRoas = priorTotals?.spend_aud   ? ((priorTotals.conversion_value ?? 0) / priorTotals.spend_aud) * 100 : null;
+
+  // Value per Conversion = conversion_value / conversions. Complements
+  // CPA — CPA is cost side, this is revenue side, both per conversion.
+  const valuePerConv      = t?.conversions             ? (t.conversion_value ?? 0) / t.conversions                    : null;
+  const priorValuePerConv = priorTotals?.conversions   ? (priorTotals.conversion_value ?? 0) / priorTotals.conversions : null;
+
   const spark = useMemo(() => ({
     spend:       dailyRows.map(d => d.spend_aud            ?? 0),
     impressions: dailyRows.map(d => d.impressions          ?? 0),
@@ -177,7 +203,26 @@ export default function GoogleAdsPage() {
     cpa:         dailyRows.map(d => Number(d.cost_per_conversion ?? 0)),
     convRate:    dailyRows.map(d => d.conversion_rate      ?? 0),
     convValue:   dailyRows.map(d => Number(d.conversion_value ?? 0)),
+    roas:        dailyRows.map(d => d.spend_aud ? ((Number(d.conversion_value ?? 0)) / d.spend_aud) * 100 : 0),
+    valuePerConv:dailyRows.map(d => (d.conversions ?? 0) ? Number(d.conversion_value ?? 0) / (d.conversions ?? 1) : 0),
   }), [dailyRows]);
+
+  // Trend chart source — normalize dailyRows into the shape MetricTrendsChart
+  // wants (Recharts indexes by series.key). Same pattern as Meta page.
+  const chartData = useMemo(() => dailyRows.map(d => ({
+    date:                d.date,
+    spend:               d.spend_aud,
+    impressions:         d.impressions,
+    clicks:              d.clicks,
+    ctr:                 d.ctr,
+    cpc:                 d.cpc,
+    cpm:                 d.cpm,
+    conversions:         Number(d.conversions ?? 0),
+    cost_per_conversion: d.cost_per_conversion,
+    conversion_rate:     d.conversion_rate,
+    conversion_value:    Number(d.conversion_value ?? 0),
+    roas:                d.spend_aud ? (Number(d.conversion_value ?? 0) / d.spend_aud) * 100 : null,
+  })), [dailyRows]);
 
   const dailyTotals = useMemo(() => {
     const spend       = dailyRows.reduce((s, r) => s + r.spend_aud,                    0);
@@ -319,12 +364,7 @@ export default function GoogleAdsPage() {
         </button>
       </div>
 
-      {/* ── Inactive-account banner ────────────────────────────────
-          Shows when totals are all zero — the atWork Google Ads
-          account has been marked Inactive in Weld since Apr 2024;
-          no recent stats will land until it's reactivated. Once
-          the account starts flowing again the banner auto-hides.
-      */}
+      {/* ── Inactive-account banner ──────────────────────────────── */}
       {(t && t.spend_aud === 0 && t.impressions === 0 && t.clicks === 0) && (
         <div style={{
           border: `1px solid ${colors.brand.secondary}`,
@@ -335,6 +375,7 @@ export default function GoogleAdsPage() {
           borderRadius: 0,
           fontSize: typography.fontSize.sm,
           lineHeight: 1.5,
+          boxShadow: shadow.md,
         }}>
           <div style={{ fontWeight: typography.fontWeight.semibold, marginBottom: 4 }}>
             Google Ads account is inactive
@@ -345,24 +386,26 @@ export default function GoogleAdsPage() {
         </div>
       )}
 
-      {/* ── Scorecards (9 tiles, 5-col grid) ── */}
+      {/* ── Scorecards (12 tiles, 6x2 grid, deltas on every tile) ── */}
       <div className="scorecard-grid" style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(5, 160px)',
+        gridTemplateColumns: 'repeat(6, 160px)',
         gap: spacing.sm,
         justifyContent: 'center',
         marginBottom: spacing.xs,
       }}>
-        <BFScorecard title="Spend"               value={fmtMoney(t?.spend_aud           ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" />
-        <BFScorecard title="Impressions"         value={fmtInt(t?.impressions           ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" />
-        <BFScorecard title="Clicks"              value={fmtInt(t?.clicks                ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" />
-        <BFScorecard title="Conversions"         value={fmtInt(t?.conversions           ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" />
-        <BFScorecard title="CTR"                 value={fmtCtr(t?.ctr                   ?? null)} sparklineData={spark.ctr}         color="blue" size="small" />
-        <BFScorecard title="CPC"                 value={fmtMoney(t?.cpc                 ?? null)} sparklineData={spark.cpc}         color="blue" size="small" />
-        <BFScorecard title="CPM"                 value={fmtMoney(t?.cpm                 ?? null)} sparklineData={spark.cpm}         color="blue" size="small" />
-        <BFScorecard title="Cost per Conversion" value={fmtMoney(t?.cost_per_conversion ?? null)} sparklineData={spark.cpa}         color="blue" size="small" />
-        <BFScorecard title="Conversion Rate"     value={fmtCtr(t?.conversion_rate       ?? null)} sparklineData={spark.convRate}    color="blue" size="small" />
-        <BFScorecard title="Conversion Value"    value={fmtMoney(t?.conversion_value    ?? 0)}    sparklineData={spark.convValue}   color="blue" size="small" />
+        <BFScorecard title="Spend"               value={fmtMoney(t?.spend_aud           ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" delta={{ pct: deltaPct(t?.spend_aud,           priorTotals?.spend_aud),           goodDirection: null   }} />
+        <BFScorecard title="Impressions"         value={fmtInt(t?.impressions           ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" delta={{ pct: deltaPct(t?.impressions,         priorTotals?.impressions),         goodDirection: 'up'   }} />
+        <BFScorecard title="Clicks"              value={fmtInt(t?.clicks                ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" delta={{ pct: deltaPct(t?.clicks,              priorTotals?.clicks),              goodDirection: 'up'   }} />
+        <BFScorecard title="CTR"                 value={fmtCtr(t?.ctr                   ?? null)} sparklineData={spark.ctr}         color="blue" size="small" delta={{ pct: deltaPct(t?.ctr,                 priorTotals?.ctr),                 goodDirection: 'up'   }} />
+        <BFScorecard title="CPC"                 value={fmtMoney(t?.cpc                 ?? null)} sparklineData={spark.cpc}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpc,                 priorTotals?.cpc),                 goodDirection: 'down' }} />
+        <BFScorecard title="CPM"                 value={fmtMoney(t?.cpm                 ?? null)} sparklineData={spark.cpm}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpm,                 priorTotals?.cpm),                 goodDirection: 'down' }} />
+        <BFScorecard title="Conversions"         value={fmtInt(t?.conversions           ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" delta={{ pct: deltaPct(t?.conversions,         priorTotals?.conversions),         goodDirection: 'up'   }} />
+        <BFScorecard title="Conversion Rate"     value={fmtCtr(t?.conversion_rate       ?? null)} sparklineData={spark.convRate}    color="blue" size="small" delta={{ pct: deltaPct(t?.conversion_rate,     priorTotals?.conversion_rate),     goodDirection: 'up'   }} />
+        <BFScorecard title="Cost per Conversion" value={fmtMoney(t?.cost_per_conversion ?? null)} sparklineData={spark.cpa}         color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_conversion, priorTotals?.cost_per_conversion), goodDirection: 'down' }} />
+        <BFScorecard title="Conversion Value"    value={fmtMoney(t?.conversion_value    ?? 0)}    sparklineData={spark.convValue}   color="blue" size="small" delta={{ pct: deltaPct(t?.conversion_value,    priorTotals?.conversion_value),    goodDirection: 'up'   }} />
+        <BFScorecard title="Value / Conversion"  value={fmtMoney(valuePerConv)}                    sparklineData={spark.valuePerConv} color="blue" size="small" delta={{ pct: deltaPct(valuePerConv,           priorValuePerConv),                goodDirection: 'up'   }} />
+        <BFScorecard title="ROAS"                value={fmtCtr(roas)}                              sparklineData={spark.roas}         color="blue" size="small" delta={{ pct: deltaPct(roas,                   priorRoas),                        goodDirection: 'up'   }} />
       </div>
       <div style={{
         textAlign: 'center', fontSize: typography.fontSize.xs,
@@ -371,117 +414,273 @@ export default function GoogleAdsPage() {
         Conversions = {GADS_CONVERSION_DEFINITION}
       </div>
 
+      {/* Top Performers — client-side pick from entityCampaigns with noise
+          floors so a 1-impression campaign can't take the top spot. Same
+          treatment as the Meta page. */}
+      {entityCampaigns.length > 0 && (() => {
+        const withImpr  = entityCampaigns.filter(c => c.impressions >= 500);
+        const withConv  = entityCampaigns.filter(c => Number(c.conversions ?? 0) >= 3);
+        const withValue = entityCampaigns.filter(c => Number(c.conversion_value ?? 0) >= 100);
+        const bestCtr  = withImpr.slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
+        const bestCpa  = withConv.slice().sort((a, b) => (a.cost_per_conversion ?? Infinity) - (b.cost_per_conversion ?? Infinity))[0];
+        const bestRoas = withValue.slice().sort((a, b) => {
+          const ra = a.spend ? (Number(a.conversion_value ?? 0) / a.spend) * 100 : 0;
+          const rb = b.spend ? (Number(b.conversion_value ?? 0) / b.spend) * 100 : 0;
+          return rb - ra;
+        })[0];
+        const highlights: { label: string; value: string; camp: GadsEntityRow | undefined }[] = [
+          { label: 'Best CTR (500+ impr)',       value: bestCtr ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                    : '—', camp: bestCtr  },
+          { label: 'Best CPA (3+ conv)',         value: bestCpa ? `$${(bestCpa.cost_per_conversion ?? 0).toFixed(2)}`                    : '—', camp: bestCpa  },
+          { label: 'Best ROAS ($100+ value)',    value: bestRoas ? `${(bestRoas.spend ? (Number(bestRoas.conversion_value ?? 0) / bestRoas.spend) * 100 : 0).toFixed(0)}%` : '—', camp: bestRoas },
+        ];
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
+            {highlights.map(h => (
+              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
+                <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  {h.label}
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: typography.fontWeight.bold, color: colors.text.primary, fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+                  {h.value}
+                </div>
+                {h.camp && (
+                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={String(h.camp.name)}>
+                    {String(h.camp.name)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Sentinel for lazy below-fold fetch */}
       <div ref={setSentinelEl} aria-hidden style={{ height: 1 }} />
 
-      {/* ── Charts + tables ── */}
+      {/* ── Full-width bottom sections ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
 
-        <ChartContainer title="Metric Trends — Spend & Clicks">
-          <MetricTrendsChart
-            data={trendsData}
-            leftYUnit="currency"
-            rightYUnit="number"
-            series={[
-              { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
-              { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
-            ]}
-          />
+        {/* One tabbed line-chart card — same pattern as Meta. Data derived
+            from dailyRows so each tab reads its own key without a separate
+            fetch. */}
+        <ChartContainer title="Metric Trends">
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>Metric:</span>
+            {([
+              { key: 'spend_clicks', label: 'Spend & Clicks'    },
+              { key: 'impressions',  label: 'Impressions'       },
+              { key: 'ctr',          label: 'CTR'               },
+              { key: 'cpc',          label: 'CPC'               },
+              { key: 'cpm',          label: 'CPM'               },
+              { key: 'conversions',  label: 'Conversions'       },
+              { key: 'cpa',          label: 'CPA'               },
+              { key: 'conv_rate',    label: 'Conv. Rate'        },
+              { key: 'conv_value',   label: 'Conversion Value'  },
+              { key: 'roas',         label: 'ROAS'              },
+            ] as { key: TrendTab; label: string }[]).map(opt => {
+              const active = trendTab === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setTrendTab(opt.key)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    fontFamily: typography.fontFamily.sans,
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    backgroundColor: active ? colors.brand.primary : '#fff',
+                    color: active ? colors.brand.primaryText : colors.text.primary,
+                    borderRadius: 0,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {(() => {
+            const data = chartData as unknown as TrendRow[];
+            switch (trendTab) {
+              case 'impressions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'impressions',         label: 'Impressions',      color: colors.chart[1] }]} />;
+              case 'ctr':
+                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'ctr',                 label: 'CTR',              color: colors.chart[3] }]} />;
+              case 'cpc':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpc',                 label: 'CPC',              color: colors.chart[4] }]} />;
+              case 'cpm':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpm',                 label: 'CPM',              color: colors.chartDark[0] }]} />;
+              case 'conversions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'conversions',         label: 'Conversions',      color: colors.chartDark[1] }]} />;
+              case 'cpa':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cost_per_conversion', label: 'CPA',              color: colors.chartDark[2] }]} />;
+              case 'conv_rate':
+                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'conversion_rate',     label: 'Conv. Rate',       color: colors.chart[2] }]} />;
+              case 'conv_value':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'conversion_value',    label: 'Conversion Value', color: colors.chart[0] }]} />;
+              case 'roas':
+                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'roas',                label: 'ROAS',             color: colors.chart[1] }]} />;
+              case 'spend_clicks':
+              default:
+                return (
+                  <MetricTrendsChart
+                    data={data}
+                    leftYUnit="currency"
+                    rightYUnit="number"
+                    series={[
+                      { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
+                      { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
+                    ]}
+                  />
+                );
+            }
+          })()}
         </ChartContainer>
 
-        <ChartContainer title="Metric Trends — CTR">
-          <MetricTrendsChart
-            data={trendsData}
-            yUnit="percent"
-            series={[{ key: 'ctr', label: 'CTR', color: colors.chart[3] }]}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Daily Summary">
-          <DailySummaryTable
-            data={dailyRows as unknown as DailyRow[]}
-            columns={DAILY_COLUMNS}
-            sortable
-            initialSort={{ key: 'date', direction: 'desc' }}
-            totalsRow={dailyTotals as unknown as Record<string, unknown>}
-            paginate={10}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Campaigns">
-          <DailySummaryTable
-            data={entityCampaigns as unknown as DailyRow[]}
-            columns={entityColumns('Campaign')}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-            />
-        </ChartContainer>
-
-        <ChartContainer title="Ad Groups">
-          <DailySummaryTable
-            data={entityAdGroups as unknown as DailyRow[]}
-            columns={entityColumns('Ad Group', { withCampaign: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-            />
-          {entityAdGroups.length === 0 && searchPausedNote}
-        </ChartContainer>
-
-        <ChartContainer title="Asset Groups">
-          <DailySummaryTable
-            data={[] as unknown as DailyRow[]}
-            columns={entityColumns('Asset Group', { withCampaign: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-            />
-          {assetGroupsNote}
-        </ChartContainer>
-
-        <ChartContainer title="Ads">
-          <DailySummaryTable
-            data={entityAds as unknown as DailyRow[]}
-            columns={entityColumns('Ad', { withAdGroup: true, withCampaign: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-            />
-          {entityAds.length === 0 && searchPausedNote}
-        </ChartContainer>
-
-        <ChartContainer title="Keywords">
-          <DailySummaryTable
-            data={entityKeywords as unknown as DailyRow[]}
-            columns={entityColumns('Keyword', { withMatchType: true, withAdGroup: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-          />
-          {entityKeywords.length === 0 && searchPausedNote}
-        </ChartContainer>
-
-        <ChartContainer title="Search Terms">
-          <DailySummaryTable
-            data={entitySearchTerms as unknown as DailyRow[]}
-            columns={entityColumns('Search Term', { withMatchType: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-          />
-          {entitySearchTerms.length === 0 && searchPausedNote}
-        </ChartContainer>
-
-        <ChartContainer title="Audience">
-          <DailySummaryTable
-            data={[] as unknown as DailyRow[]}
-            columns={entityColumns('Audience', { withCampaign: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-            />
-          {audienceNote}
+        {/* One consolidated tabbed table — folds every table on the old
+            layout (Campaigns, Ad Groups, Ads, Daily Summary, Keywords,
+            Search Terms, Asset Groups, Audience) into a single card
+            with a tab row. */}
+        <ChartContainer title="Performance">
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>View:</span>
+            {([
+              { key: 'campaigns',   label: 'Campaigns'     },
+              { key: 'adgroups',    label: 'Ad Groups'     },
+              { key: 'ads',         label: 'Ads'           },
+              { key: 'daily',       label: 'Daily Summary' },
+              { key: 'keywords',    label: 'Keywords'      },
+              { key: 'searchterms', label: 'Search Terms'  },
+              { key: 'assetgroups', label: 'Asset Groups'  },
+              { key: 'audience',    label: 'Audience'      },
+            ] as { key: PerfTab; label: string }[]).map(opt => {
+              const active = perfTab === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setPerfTab(opt.key)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    fontFamily: typography.fontFamily.sans,
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    backgroundColor: active ? colors.brand.primary : '#fff',
+                    color: active ? colors.brand.primaryText : colors.text.primary,
+                    borderRadius: 0,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {(() => {
+            switch (perfTab) {
+              case 'adgroups':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={entityAdGroups as unknown as DailyRow[]}
+                      columns={entityColumns('Ad Group', { withCampaign: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {entityAdGroups.length === 0 && searchPausedNote}
+                  </>
+                );
+              case 'ads':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={entityAds as unknown as DailyRow[]}
+                      columns={entityColumns('Ad', { withAdGroup: true, withCampaign: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {entityAds.length === 0 && searchPausedNote}
+                  </>
+                );
+              case 'daily':
+                return (
+                  <DailySummaryTable
+                    data={dailyRows as unknown as DailyRow[]}
+                    columns={DAILY_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'date', direction: 'desc' }}
+                    totalsRow={dailyTotals as unknown as Record<string, unknown>}
+                    paginate={10}
+                  />
+                );
+              case 'keywords':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={entityKeywords as unknown as DailyRow[]}
+                      columns={entityColumns('Keyword', { withMatchType: true, withAdGroup: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {entityKeywords.length === 0 && searchPausedNote}
+                  </>
+                );
+              case 'searchterms':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={entitySearchTerms as unknown as DailyRow[]}
+                      columns={entityColumns('Search Term', { withMatchType: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {entitySearchTerms.length === 0 && searchPausedNote}
+                  </>
+                );
+              case 'assetgroups':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={[] as unknown as DailyRow[]}
+                      columns={entityColumns('Asset Group', { withCampaign: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {assetGroupsNote}
+                  </>
+                );
+              case 'audience':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={[] as unknown as DailyRow[]}
+                      columns={entityColumns('Audience', { withCampaign: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {audienceNote}
+                  </>
+                );
+              case 'campaigns':
+              default:
+                return (
+                  <DailySummaryTable
+                    data={entityCampaigns as unknown as DailyRow[]}
+                    columns={entityColumns('Campaign')}
+                    sortable
+                    initialSort={{ key: 'spend', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+            }
+          })()}
         </ChartContainer>
 
       </div>

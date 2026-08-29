@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { format, parseISO } from 'date-fns';
-import { colors, typography, spacing } from '@/tokens';
+import { colors, typography, spacing, shadow } from '@/tokens';
 import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
@@ -25,13 +25,13 @@ const MetricTrendsChart = dynamic(
 );
 
 import {
-  fetchAboveFold, fetchBelowFold, fetchEntityTables, fetchDayOfWeek, getFilterOptions,
+  fetchAboveFold, fetchEntityTables, fetchDayOfWeek, getFilterOptions,
   type LinkedinFilters, type LinkedinFilterOptions,
-  type Totals, type DailyRow, type TrendRow, type EntityRow, type DayOfWeekRow,
+  type Totals, type DailyRow, type EntityRow, type DayOfWeekRow,
 } from './actions';
 
 // Local mirror of MetricTrendsChart's exported TrendRow (which carries
-// BFT-era cpl_* fields we don't use on LinkedIn). We cast trendsData
+// BFT-era cpl_* fields we don't use on LinkedIn). We cast chartData
 // through this so TS is happy — the chart only reads the keys named in
 // its `series` prop.
 type ChartTrendRow = {
@@ -62,6 +62,15 @@ const fmtDate  = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
     ? format(parseISO(v), 'd-MMM-yyyy')
     : String(v ?? '');
+
+// Period-over-period % change. Returns null when the baseline is 0 so
+// the scorecard renders "—" instead of "▲ Infinity%".
+function deltaPct(curr: number | null | undefined, prior: number | null | undefined): number | null {
+  const c = Number(curr ?? 0);
+  const p = Number(prior ?? 0);
+  if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null;
+  return ((c - p) / p) * 100;
+}
 
 // Entity table column config — the two group-by options share this shape,
 // with the "Campaign" parent link inserted only for creatives.
@@ -183,7 +192,7 @@ function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean;
   return cols;
 }
 
-// Daily Summary table — mirrors the 10 scorecard metrics + Date.
+// Daily Summary table — mirrors the scorecard metrics + Date.
 const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'date',          label: 'Date',        align: 'left', render: r => fmtDate(r.date) },
   { key: 'spend',         label: 'Spend',       numeric: true, render: r => `$${Math.round(Number(r.spend       || 0)).toLocaleString()}` },
@@ -210,13 +219,21 @@ export default function LinkedinPage() {
   const [filterOptions, setFilterOptions] = useState<LinkedinFilterOptions>({ campaigns: [], objectives: [] });
 
   const [summaryTotals,   setSummaryTotals]   = useState<Totals | null>(null);
+  const [priorTotals,     setPriorTotals]     = useState<Totals | null>(null);
   const [dailyRows,       setDailyRows]       = useState<DailyRow[]>([]);
-  const [trendsData,      setTrendsData]      = useState<TrendRow[]>([]);
   const [entityCampaigns, setEntityCampaigns] = useState<EntityRow[]>([]);
   const [entityAds,       setEntityAds]       = useState<EntityRow[]>([]);
   const [dowData,         setDowData]         = useState<DayOfWeekRow[]>([]);
-  type LinkedinGroupBy = 'campaigns' | 'ads';
-  const [linkedinGroupBy, setLinkedinGroupBy] = useState<LinkedinGroupBy>('campaigns');
+
+  type PerfTab = 'campaigns' | 'ads' | 'daily';
+  const [perfTab, setPerfTab] = useState<PerfTab>('campaigns');
+
+  type TrendTab =
+    | 'spend_clicks' | 'impressions'
+    | 'ctr' | 'cpc' | 'cpm'
+    | 'engagements' | 'video_views' | 'video_completions' | 'completion_rate'
+    | 'cost_per_completion' | 'leads';
+  const [trendTab, setTrendTab] = useState<TrendTab>('spend_clicks');
 
   // Filter options — date-only dependency
   useEffect(() => {
@@ -235,12 +252,17 @@ export default function LinkedinPage() {
     } catch (e) { console.error(e); }
   }, []);
 
-  // Trends chart is visually above the fold — fetch in parallel with
-  // above-fold so it doesn't wait behind entity tables.
-  const fetchTrendsCb = useCallback(async (sd: string, ed: string, f: LinkedinFilters) => {
+  // Prior-period fetch — same length window immediately before the current
+  // range, filters preserved. Powers scorecard delta arrows.
+  const fetchPriorCb = useCallback(async (sd: string, ed: string, f: LinkedinFilters) => {
     try {
-      const data = await fetchBelowFold(sd, ed, f);
-      setTrendsData(data.trends);
+      const currStart = new Date(sd).getTime();
+      const currEnd   = new Date(ed).getTime();
+      const lenMs     = currEnd - currStart;
+      const priorEnd  = new Date(currStart - 86_400_000);
+      const priorStart = new Date(priorEnd.getTime() - lenMs);
+      const data = await fetchAboveFold(toIso(priorStart), toIso(priorEnd), f);
+      setPriorTotals(data.totals);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -258,8 +280,8 @@ export default function LinkedinPage() {
 
   useEffect(() => {
     fetchAboveFoldCb(startDate, endDate, filters);
-    fetchTrendsCb   (startDate, endDate, filters);
-  }, [startDate, endDate, filters, fetchAboveFoldCb, fetchTrendsCb]);
+    fetchPriorCb    (startDate, endDate, filters);
+  }, [startDate, endDate, filters, fetchAboveFoldCb, fetchPriorCb]);
   useEffect(() => {
     if (belowFoldRequested) { fetchBelowFoldCb(startDate, endDate, filters); }
   }, [startDate, endDate, filters, belowFoldRequested, fetchBelowFoldCb]);
@@ -287,7 +309,28 @@ export default function LinkedinPage() {
     videoViews:       dailyRows.map(d => d.video_views       ?? 0),
     videoCompletions: dailyRows.map(d => (d.video_completions ?? 0)),
     completionRate:   dailyRows.map(d => (d.video_views ? ((d.video_completions ?? 0) / d.video_views) * 100 : 0)),
+    leads:            dailyRows.map(d => d.leads             ?? 0),
+    costPerCompletion:dailyRows.map(d => (d.video_completions ? d.spend / (d.video_completions ?? 1) : 0)),
   }), [dailyRows]);
+
+  // Trend chart source — normalize dailyRows into the shape MetricTrendsChart
+  // wants (Recharts indexes by series.key). Same pattern as Meta page.
+  // Cost/Completion and Completion Rate are derived per day.
+  const chartData = useMemo(() => dailyRows.map(d => ({
+    date:               d.date,
+    spend:              d.spend,
+    impressions:        d.impressions,
+    clicks:             d.clicks,
+    ctr:                d.ctr,
+    cpc:                d.cpc,
+    cpm:                d.cpm,
+    engagements:        d.engagements,
+    video_views:        d.video_views,
+    video_completions:  d.video_completions ?? 0,
+    completion_rate:    d.video_views ? ((d.video_completions ?? 0) / d.video_views) * 100 : null,
+    cost_per_completion: (d.video_completions ?? 0) > 0 ? d.spend / (d.video_completions ?? 1) : null,
+    leads:              d.leads,
+  })), [dailyRows]);
 
   // Daily Summary totals row — sums over the full range.
   const dailyTotals = useMemo(() => {
@@ -405,7 +448,7 @@ export default function LinkedinPage() {
         </button>
       </div>
 
-      {/* ── Scorecards (12 tiles, 6-col grid) ── */}
+      {/* ── Scorecards (12 tiles, 6x2 grid, deltas on every tile) ── */}
       <div
         className="scorecard-grid"
         style={{
@@ -416,18 +459,18 @@ export default function LinkedinPage() {
           marginBottom: spacing.lg,
         }}
       >
-        <BFScorecard title="Spend"          value={fmtMoney(t?.spend         ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" />
-        <BFScorecard title="Impressions"    value={fmtInt(t?.impressions     ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" />
-        <BFScorecard title="Clicks"         value={fmtInt(t?.clicks          ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" />
-        <BFScorecard title="CTR"            value={fmtCtr(t?.ctr             ?? null)} sparklineData={spark.ctr}         color="blue" size="small" />
-        <BFScorecard title="CPC"            value={fmtMoney(t?.cpc           ?? null)} sparklineData={spark.cpc}         color="blue" size="small" />
-        <BFScorecard title="CPM"            value={fmtMoney(t?.cpm           ?? null)} sparklineData={spark.cpm}         color="blue" size="small" />
-        <BFScorecard title="Video Views"    value={fmtInt(t?.video_views     ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" />
-        <BFScorecard title="Video Compl."   value={fmtInt(t?.video_completions ?? 0)}  sparklineData={spark.videoCompletions} color="blue" size="small" />
-        <BFScorecard title="Compl. Rate"    value={fmtCtr(t?.video_completion_rate ?? null)} sparklineData={spark.completionRate} color="blue" size="small" />
-        <BFScorecard title="Cost/View"      value={fmtMoney(t?.cost_per_video_view ?? null)} sparklineData={spark.videoViews}  color="blue" size="small" />
-        <BFScorecard title="Cost/Compl."    value={fmtMoney(t?.cost_per_completion ?? null)} sparklineData={spark.videoCompletions} color="blue" size="small" />
-        <BFScorecard title="Fullscreen"     value={fmtInt(t?.fullscreen_plays ?? 0)}   sparklineData={spark.videoCompletions} color="blue" size="small" />
+        <BFScorecard title="Spend"          value={fmtMoney(t?.spend         ?? 0)}    sparklineData={spark.spend}            color="blue" size="small" delta={{ pct: deltaPct(t?.spend,                 priorTotals?.spend),                 goodDirection: null   }} />
+        <BFScorecard title="Impressions"    value={fmtInt(t?.impressions     ?? 0)}    sparklineData={spark.impressions}      color="blue" size="small" delta={{ pct: deltaPct(t?.impressions,           priorTotals?.impressions),           goodDirection: 'up'   }} />
+        <BFScorecard title="Clicks"         value={fmtInt(t?.clicks          ?? 0)}    sparklineData={spark.clicks}           color="blue" size="small" delta={{ pct: deltaPct(t?.clicks,                priorTotals?.clicks),                goodDirection: 'up'   }} />
+        <BFScorecard title="CTR"            value={fmtCtr(t?.ctr             ?? null)} sparklineData={spark.ctr}              color="blue" size="small" delta={{ pct: deltaPct(t?.ctr,                   priorTotals?.ctr),                   goodDirection: 'up'   }} />
+        <BFScorecard title="CPC"            value={fmtMoney(t?.cpc           ?? null)} sparklineData={spark.cpc}              color="blue" size="small" delta={{ pct: deltaPct(t?.cpc,                   priorTotals?.cpc),                   goodDirection: 'down' }} />
+        <BFScorecard title="CPM"            value={fmtMoney(t?.cpm           ?? null)} sparklineData={spark.cpm}              color="blue" size="small" delta={{ pct: deltaPct(t?.cpm,                   priorTotals?.cpm),                   goodDirection: 'down' }} />
+        <BFScorecard title="Video Views"    value={fmtInt(t?.video_views     ?? 0)}    sparklineData={spark.videoViews}       color="blue" size="small" delta={{ pct: deltaPct(t?.video_views,           priorTotals?.video_views),           goodDirection: 'up'   }} />
+        <BFScorecard title="Video Compl."   value={fmtInt(t?.video_completions ?? 0)}  sparklineData={spark.videoCompletions} color="blue" size="small" delta={{ pct: deltaPct(t?.video_completions,     priorTotals?.video_completions),     goodDirection: 'up'   }} />
+        <BFScorecard title="Compl. Rate"    value={fmtCtr(t?.video_completion_rate ?? null)} sparklineData={spark.completionRate}   color="blue" size="small" delta={{ pct: deltaPct(t?.video_completion_rate, priorTotals?.video_completion_rate), goodDirection: 'up'   }} />
+        <BFScorecard title="Cost/View"      value={fmtMoney(t?.cost_per_video_view ?? null)} sparklineData={spark.videoViews}       color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_video_view,   priorTotals?.cost_per_video_view),   goodDirection: 'down' }} />
+        <BFScorecard title="Cost/Compl."    value={fmtMoney(t?.cost_per_completion ?? null)} sparklineData={spark.videoCompletions} color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_completion,   priorTotals?.cost_per_completion),   goodDirection: 'down' }} />
+        <BFScorecard title="Fullscreen"     value={fmtInt(t?.fullscreen_plays ?? 0)}   sparklineData={spark.videoCompletions} color="blue" size="small" delta={{ pct: deltaPct(t?.fullscreen_plays,      priorTotals?.fullscreen_plays),      goodDirection: 'up'   }} />
       </div>
 
       {/* Top Performers — sits directly under the scorecards. Client-side pick
@@ -449,7 +492,7 @@ export default function LinkedinPage() {
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
             {highlights.map(h => (
-              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card }}>
+              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
                 <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                   {h.label}
                 </div>
@@ -473,122 +516,30 @@ export default function LinkedinPage() {
       {/* ── Full-width sections ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
 
-        <ChartContainer title="Metric Trends — Spend & Clicks">
-          <MetricTrendsChart
-            // MetricTrendsChart's internal TrendRow shape carries BFT-era
-            // cpl_* fields that don't apply to LinkedIn — cast through
-            // unknown, the chart only reads the keys named in `series`.
-            data={trendsData as unknown as ChartTrendRow[]}
-            leftYUnit="currency"
-            rightYUnit="number"
-            series={[
-              { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
-              { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
-            ]}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Metric Trends — CTR">
-          <MetricTrendsChart
-            data={trendsData as unknown as ChartTrendRow[]}
-            yUnit="percent"
-            series={[{ key: 'ctr', label: 'CTR', color: colors.chart[3] }]}
-          />
-        </ChartContainer>
-
-        {/* Video Watch Funnel — full 6-step drop-off (Starts → 25% → 50% → 75% → Complete → Fullscreen).
-            LinkedIn-specific because atWork's LinkedIn spend is almost all video ads.
-            % column expresses share of Video Starts (funnel entry) — matches Meta's funnel semantics. */}
-        {t && t.video_starts > 0 && (
-          <ChartContainer title="Video Watch Funnel">
-            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {(() => {
-                const starts = t.video_starts;
-                const steps: [string, number][] = [
-                  ['Video Starts', t.video_starts],
-                  ['25% Watched', t.video_q1],
-                  ['50% Watched', t.video_mid],
-                  ['75% Watched', t.video_q3],
-                  ['Completed',   t.video_completions],
-                  ['Fullscreen',  t.fullscreen_plays],
-                ];
-                return steps.map(([label, count]) => {
-                  const pct = starts > 0 ? (count / starts) * 100 : 0;
-                  return (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                      <div style={{ width: 130, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
-                        {label}
-                      </div>
-                      <div style={{ flex: 1, position: 'relative', height: 28, backgroundColor: colors.background.panel, minWidth: 40 }}>
-                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
-                      </div>
-                      <div style={{ width: 140, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
-                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{fmtInt(count)}</span>
-                        <span style={{ color: colors.text.secondary }}>{pct.toFixed(1)}%</span>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </ChartContainer>
-        )}
-
-        <ChartContainer title="Daily Summary">
-          <DailySummaryTable
-            data={dailyRows as unknown as Record<string, unknown>[]}
-            columns={DAILY_COLUMNS}
-            sortable
-            initialSort={{ key: 'date', direction: 'desc' }}
-            totalsRow={dailyTotals as unknown as Record<string, unknown>}
-            paginate={10}
-          />
-        </ChartContainer>
-
-        {/* Day-of-week performance — LinkedIn is B2B, expect a mid-week peak.
-            Bars sized to spend; CTR labelled on the right. */}
-        {dowData.some(d => d.spend > 0) && (
-          <ChartContainer title="Performance by Day of Week">
-            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {(() => {
-                const maxSpend = Math.max(...dowData.map(d => d.spend));
-                return dowData.map(d => {
-                  const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
-                  return (
-                    <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                      <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
-                        {d.weekday}
-                      </div>
-                      <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
-                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
-                      </div>
-                      <div style={{ width: 200, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
-                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
-                        <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
-                        <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </ChartContainer>
-        )}
-
-        {/* Consolidated grouped table — LinkedIn grain is Campaigns + Ads
-            (creatives) only. No Ad Set level in the source. */}
-        <ChartContainer title="Performance">
+        {/* One tabbed line-chart card — folds Spend & Clicks + CTR + all the
+            individual video/lead trends into a single card. Same pattern
+            as Meta. */}
+        <ChartContainer title="Metric Trends">
           <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
-            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>Group by:</span>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>Metric:</span>
             {([
-              { key: 'campaigns', label: 'Campaigns' },
-              { key: 'ads',       label: 'Ads'       },
-            ] as { key: LinkedinGroupBy; label: string }[]).map(opt => {
-              const active = linkedinGroupBy === opt.key;
+              { key: 'spend_clicks',      label: 'Spend & Clicks'    },
+              { key: 'impressions',       label: 'Impressions'       },
+              { key: 'ctr',               label: 'CTR'               },
+              { key: 'cpc',               label: 'CPC'               },
+              { key: 'cpm',               label: 'CPM'               },
+              { key: 'engagements',       label: 'Engagements'       },
+              { key: 'video_views',       label: 'Video Views'       },
+              { key: 'video_completions', label: 'Video Completions' },
+              { key: 'completion_rate',   label: 'Completion Rate'   },
+              { key: 'cost_per_completion', label: 'Cost/Completion' },
+              { key: 'leads',             label: 'Leads'             },
+            ] as { key: TrendTab; label: string }[]).map(opt => {
+              const active = trendTab === opt.key;
               return (
                 <button
                   key={opt.key}
-                  onClick={() => setLinkedinGroupBy(opt.key)}
+                  onClick={() => setTrendTab(opt.key)}
                   style={{
                     padding: '6px 12px',
                     fontSize: typography.fontSize.sm,
@@ -607,7 +558,150 @@ export default function LinkedinPage() {
             })}
           </div>
           {(() => {
-            switch (linkedinGroupBy) {
+            const data = chartData as unknown as ChartTrendRow[];
+            switch (trendTab) {
+              case 'impressions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'impressions',         label: 'Impressions',       color: colors.chart[1] }]} />;
+              case 'ctr':
+                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'ctr',                 label: 'CTR',               color: colors.chart[3] }]} />;
+              case 'cpc':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpc',                 label: 'CPC',               color: colors.chart[4] }]} />;
+              case 'cpm':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpm',                 label: 'CPM',               color: colors.chartDark[0] }]} />;
+              case 'engagements':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'engagements',         label: 'Engagements',       color: colors.chart[2] }]} />;
+              case 'video_views':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'video_views',         label: 'Video Views',       color: colors.chartDark[1] }]} />;
+              case 'video_completions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'video_completions',   label: 'Video Completions', color: colors.chartDark[2] }]} />;
+              case 'completion_rate':
+                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'completion_rate',     label: 'Completion Rate',   color: colors.chart[0] }]} />;
+              case 'cost_per_completion':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cost_per_completion', label: 'Cost/Completion',   color: colors.chart[4] }]} />;
+              case 'leads':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'leads',               label: 'Leads',             color: colors.chart[3] }]} />;
+              case 'spend_clicks':
+              default:
+                return (
+                  <MetricTrendsChart
+                    data={data}
+                    leftYUnit="currency"
+                    rightYUnit="number"
+                    series={[
+                      { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
+                      { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
+                    ]}
+                  />
+                );
+            }
+          })()}
+        </ChartContainer>
+
+        {/* 2-panel bar chart row: Video Watch Funnel + Day of Week side by
+            side (each at flex-basis calc(50%-12px) to match the 24px gap).
+            Falls to 1-column when width can't hold both. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
+          {t && t.video_starts > 0 && (
+            <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+              <ChartContainer title="Video Watch Funnel">
+                <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                  {(() => {
+                    const starts = t.video_starts;
+                    const steps: [string, number][] = [
+                      ['Video Starts', t.video_starts],
+                      ['25% Watched', t.video_q1],
+                      ['50% Watched', t.video_mid],
+                      ['75% Watched', t.video_q3],
+                      ['Completed',   t.video_completions],
+                      ['Fullscreen',  t.fullscreen_plays],
+                    ];
+                    return steps.map(([label, count]) => {
+                      const pct = starts > 0 ? (count / starts) * 100 : 0;
+                      return (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                          <div style={{ width: 110, flexShrink: 0, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                            {label}
+                          </div>
+                          <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 30 }}>
+                            <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                          </div>
+                          <div style={{ width: 110, flexShrink: 0, fontSize: typography.fontSize.xs, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: 4, fontVariantNumeric: 'tabular-nums' }}>
+                            <span style={{ fontWeight: typography.fontWeight.semibold }}>{fmtInt(count)}</span>
+                            <span style={{ color: colors.text.secondary }}>{pct.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </ChartContainer>
+            </div>
+          )}
+          {dowData.some(d => d.spend > 0) && (
+            <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+              <ChartContainer title="Performance by Day of Week">
+                <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                  {(() => {
+                    const maxSpend = Math.max(...dowData.map(d => d.spend));
+                    return dowData.map(d => {
+                      const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
+                      return (
+                        <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                          <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                            {d.weekday}
+                          </div>
+                          <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                            <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                          </div>
+                          <div style={{ width: 200, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                            <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
+                            <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
+                            <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </ChartContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Consolidated tabbed table — Campaigns + Ads + Daily Summary.
+            LinkedIn grain is Campaigns + Ads (creatives) only. */}
+        <ChartContainer title="Performance">
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>View:</span>
+            {([
+              { key: 'campaigns', label: 'Campaigns'     },
+              { key: 'ads',       label: 'Ads'           },
+              { key: 'daily',     label: 'Daily Summary' },
+            ] as { key: PerfTab; label: string }[]).map(opt => {
+              const active = perfTab === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setPerfTab(opt.key)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    fontFamily: typography.fontFamily.sans,
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    backgroundColor: active ? colors.brand.primary : '#fff',
+                    color: active ? colors.brand.primaryText : colors.text.primary,
+                    borderRadius: 0,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {(() => {
+            switch (perfTab) {
               case 'ads':
                 return (
                   <>
@@ -629,6 +723,17 @@ export default function LinkedinPage() {
                       </div>
                     )}
                   </>
+                );
+              case 'daily':
+                return (
+                  <DailySummaryTable
+                    data={dailyRows as unknown as Record<string, unknown>[]}
+                    columns={DAILY_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'date', direction: 'desc' }}
+                    totalsRow={dailyTotals as unknown as Record<string, unknown>}
+                    paginate={10}
+                  />
                 );
               case 'campaigns':
               default:
