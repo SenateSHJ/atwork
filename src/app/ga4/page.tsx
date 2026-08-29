@@ -116,8 +116,8 @@ export default function Ga4Page() {
   const [perfTab, setPerfTab] = useState<PerfTab>('daily');
 
   type TrendTab =
-    | 'traffic_engagement' | 'users' | 'new_users' | 'sessions' | 'page_views'
-    | 'engaged_sessions' | 'bounce_rate' | 'engagement_rate'
+    | 'traffic_engagement' | 'users' | 'sessions' | 'page_views'
+    | 'bounce_rate' | 'engagement_rate'
     | 'lead_events' | 'conversion_rate';
   const [trendTab, setTrendTab] = useState<TrendTab>('traffic_engagement');
 
@@ -522,10 +522,8 @@ export default function Ga4Page() {
             {([
               { key: 'traffic_engagement', label: 'Traffic & Engagement' },
               { key: 'users',              label: 'Users'                },
-              { key: 'new_users',          label: 'New Users'            },
               { key: 'sessions',           label: 'Sessions'             },
               { key: 'page_views',         label: 'Page Views'           },
-              { key: 'engaged_sessions',   label: 'Engaged Sessions'     },
               { key: 'bounce_rate',        label: 'Bounce Rate'          },
               { key: 'engagement_rate',    label: 'Engagement Rate'      },
               { key: 'lead_events',        label: 'Custom Events'        },
@@ -557,15 +555,29 @@ export default function Ga4Page() {
             const data = chartData as unknown as TrendRow[];
             switch (trendTab) {
               case 'users':
-                return <MetricTrendsChart data={data} yUnit="number"  series={[{ key: 'total_users',      label: 'Users',            color: colors.chart[1] }]} />;
-              case 'new_users':
-                return <MetricTrendsChart data={data} yUnit="number"  series={[{ key: 'new_users',        label: 'New Users',        color: colors.chart[2] }]} />;
+                return (
+                  <MetricTrendsChart
+                    data={data}
+                    yUnit="number"
+                    series={[
+                      { key: 'total_users', label: 'Users',     color: colors.chart[1] },
+                      { key: 'new_users',   label: 'New Users', color: colors.chart[2] },
+                    ]}
+                  />
+                );
               case 'sessions':
-                return <MetricTrendsChart data={data} yUnit="number"  series={[{ key: 'sessions',         label: 'Sessions',         color: colors.chart[3] }]} />;
+                return (
+                  <MetricTrendsChart
+                    data={data}
+                    yUnit="number"
+                    series={[
+                      { key: 'sessions',         label: 'Sessions',         color: colors.chart[3]     },
+                      { key: 'engaged_sessions', label: 'Engaged Sessions', color: colors.chartDark[1] },
+                    ]}
+                  />
+                );
               case 'page_views':
                 return <MetricTrendsChart data={data} yUnit="number"  series={[{ key: 'page_views',       label: 'Page Views',       color: colors.chartDark[0] }]} />;
-              case 'engaged_sessions':
-                return <MetricTrendsChart data={data} yUnit="number"  series={[{ key: 'engaged_sessions', label: 'Engaged Sessions', color: colors.chartDark[1] }]} />;
               case 'bounce_rate':
                 return <MetricTrendsChart data={data} yUnit="percent" series={[{ key: 'bounce_rate_pct',  label: 'Bounce Rate',      color: colors.chart[4] }]} />;
               case 'engagement_rate':
