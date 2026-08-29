@@ -61,7 +61,7 @@ const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'engaged_sessions',  label: 'Engaged Sessions', numeric: true, render: r => Number(r.engaged_sessions || 0).toLocaleString() },
   { key: 'bounce_rate_pct',   label: 'Bounce Rate',      numeric: true, render: r => r.bounce_rate_pct == null ? '—' : `${Number(r.bounce_rate_pct).toFixed(2)}%` },
   { key: 'avg_engagement_secs', label: 'Avg. Engagement', numeric: true, render: r => fmtDuration(Number(r.avg_engagement_secs || 0)) },
-  { key: 'lead_events',       label: 'Lead Events',      numeric: true, render: r => Number(r.lead_events      || 0).toLocaleString() },
+  { key: 'lead_events',       label: 'Custom Events',    numeric: true, render: r => Number(r.lead_events      || 0).toLocaleString() },
   { key: 'conversion_rate',   label: 'Conv. Rate',       numeric: true, render: r => r.conversion_rate == null ? '—' : `${Number(r.conversion_rate).toFixed(2)}%` },
 ];
 
@@ -408,7 +408,7 @@ export default function Ga4Page() {
         <BFScorecard title="Page Views"        value={fmtInt(t?.page_views        ?? 0)}    sparklineData={spark.page_views}        color="blue" size="small" delta={{ pct: deltaPct(t?.page_views,        priorTotals?.page_views),        goodDirection: 'up'   }} />
         <BFScorecard title="Avg. Engagement"   value={fmtDuration(t?.avg_engagement_secs ?? 0)} sparklineData={spark.avg_engagement} color="blue" size="small" delta={{ pct: deltaPct(t?.avg_engagement_secs, priorTotals?.avg_engagement_secs), goodDirection: 'up' }} />
         <BFScorecard title="Bounce Rate"       value={fmtCtr(t?.bounce_rate       ?? null)} sparklineData={spark.bounce}            color="blue" size="small" delta={{ pct: deltaPct(t?.bounce_rate,       priorTotals?.bounce_rate),       goodDirection: 'down' }} />
-        <BFScorecard title="Lead Events"       value={fmtInt(t?.lead_events       ?? 0)}    sparklineData={spark.leads}             color="blue" size="small" delta={{ pct: deltaPct(t?.lead_events,       priorTotals?.lead_events),       goodDirection: 'up'   }} />
+        <BFScorecard title="Custom Events"     value={fmtInt(t?.lead_events       ?? 0)}    sparklineData={spark.leads}             color="blue" size="small" delta={{ pct: deltaPct(t?.lead_events,       priorTotals?.lead_events),       goodDirection: 'up'   }} />
         <BFScorecard title="Conversion Rate"   value={fmtCtr(t?.conversion_rate   ?? null)} sparklineData={spark.conversion_rate}   color="blue" size="small" delta={{ pct: deltaPct(t?.conversion_rate,   priorTotals?.conversion_rate),   goodDirection: 'up'   }} />
         <BFScorecard title="Engaged Sessions"  value={fmtInt(t?.engaged_sessions  ?? 0)}    sparklineData={spark.engaged_sessions}  color="blue" size="small" delta={{ pct: deltaPct(t?.engaged_sessions,  priorTotals?.engaged_sessions),  goodDirection: 'up'   }} />
         <BFScorecard title="Engagement Rate"   value={fmtCtr(t?.engagement_rate   ?? null)} sparklineData={spark.engagement_rate}   color="blue" size="small" delta={{ pct: deltaPct(t?.engagement_rate,   priorTotals?.engagement_rate),   goodDirection: 'up'   }} />
@@ -446,7 +446,7 @@ export default function Ga4Page() {
         const highlights: { label: string; value: string; detail: string | null }[] = [
           { label: 'Top Channel by Sessions', value: topChannel ? fmtInt(topChannel.sessions)   : '—', detail: topChannel?.channel    ?? null },
           { label: 'Top Page by Views',       value: topPage    ? fmtInt(topPage.page_views)    : '—', detail: topPage?.page_path     ?? null },
-          { label: 'Top Lead Event',          value: topLead    ? fmtInt(topLead.count)         : '—', detail: topLead?.event_name    ?? null },
+          { label: 'Top Custom Event',        value: topLead    ? fmtInt(topLead.count)         : '—', detail: topLead?.event_name    ?? null },
         ];
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
@@ -492,7 +492,7 @@ export default function Ga4Page() {
               { key: 'engaged_sessions',   label: 'Engaged Sessions'     },
               { key: 'bounce_rate',        label: 'Bounce Rate'          },
               { key: 'engagement_rate',    label: 'Engagement Rate'      },
-              { key: 'lead_events',        label: 'Lead Events'          },
+              { key: 'lead_events',        label: 'Custom Events'        },
               { key: 'conversion_rate',    label: 'Conversion Rate'      },
             ] as { key: TrendTab; label: string }[]).map(opt => {
               const active = trendTab === opt.key;
@@ -535,7 +535,7 @@ export default function Ga4Page() {
               case 'engagement_rate':
                 return <MetricTrendsChart data={data} yUnit="percent" series={[{ key: 'engagement_rate',  label: 'Engagement Rate',  color: colors.chart[0] }]} />;
               case 'lead_events':
-                return <MetricTrendsChart data={data} yUnit="number"  series={[{ key: 'lead_events',      label: 'Lead Events',      color: colors.chartDark[2] }]} />;
+                return <MetricTrendsChart data={data} yUnit="number"  series={[{ key: 'lead_events',      label: 'Custom Events',    color: colors.chartDark[2] }]} />;
               case 'conversion_rate':
                 return <MetricTrendsChart data={data} yUnit="percent" series={[{ key: 'conversion_rate',  label: 'Conversion Rate',  color: colors.chart[3] }]} />;
               case 'traffic_engagement':
@@ -600,7 +600,7 @@ export default function Ga4Page() {
                         <div style={{ width: 170, flexShrink: 0, fontSize: typography.fontSize.xs, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: 4, fontVariantNumeric: 'tabular-nums' }}>
                           <span style={{ fontWeight: typography.fontWeight.semibold }}>{Number(d.sessions).toLocaleString()}</span>
                           <span style={{ color: colors.text.secondary }}>{Number(d.users).toLocaleString()} u</span>
-                          <span style={{ color: colors.text.secondary }}>{d.lead_events} leads</span>
+                          <span style={{ color: colors.text.secondary }}>{d.lead_events} events</span>
                         </div>
                       </div>
                     );
@@ -622,7 +622,7 @@ export default function Ga4Page() {
               { key: 'traffic',      label: 'Traffic Sources' },
               { key: 'toppages',     label: 'Top Pages'       },
               { key: 'browserOs',    label: 'Browser & OS'    },
-              { key: 'leadEvents',   label: 'Lead Events'     },
+              { key: 'leadEvents',   label: 'Custom Events'   },
               { key: 'landingPages', label: 'Landing Pages'   },
               { key: 'geography',    label: 'Geography'       },
             ] as { key: PerfTab; label: string }[]).map(opt => {
