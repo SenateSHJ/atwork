@@ -167,27 +167,6 @@ const ENGAGEMENT_COLUMNS: DSTColumn[] = [
   { key: 'landing_page_view', label: 'Landing Page Views',numeric: true, render: r => Number(r.landing_page_view || 0).toLocaleString() },
 ];
 
-// Video Watch Funnel — one row per milestone across the selected window,
-// count + % of 25% Watched (funnel entry point).
-const VIDEO_WATCH_COLUMNS: DSTColumn[] = [
-  { key: 'milestone', label: 'Milestone',   align: 'left' },
-  { key: 'count',     label: 'Count',       numeric: true, render: r => Number(r.count || 0).toLocaleString() },
-  { key: 'rate',      label: '% of 25%',    numeric: true, render: r => r.rate == null ? '—' : `${Number(r.rate).toFixed(1)}%` },
-];
-
-// Devices + Placements share a shape (name / impressions / clicks) — CTR is
-// derived at render time since the query doesn't ship it pre-computed.
-const DEVICE_PLACEMENT_COLUMNS: DSTColumn[] = [
-  { key: 'name',        label: 'Name',        align: 'left' },
-  { key: 'impressions', label: 'Impressions', numeric: true, render: r => Number(r.impressions || 0).toLocaleString() },
-  { key: 'clicks',      label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
-  { key: 'ctr',         label: 'CTR',         numeric: true, render: r => {
-    const impr = Number(r.impressions || 0);
-    const clk  = Number(r.clicks      || 0);
-    return impr ? `${((clk / impr) * 100).toFixed(2)}%` : '—';
-  } },
-];
-
 const DOW_COLUMNS: DSTColumn[] = [
   { key: 'weekday',     label: 'Day',         align: 'left' },
   { key: 'spend',       label: 'Spend',       numeric: true, render: r => `$${Math.round(Number(r.spend       || 0)).toLocaleString()}` },
@@ -247,7 +226,7 @@ export default function MetaPage() {
   type PerfTab =
     | 'campaigns' | 'adsets' | 'ads'
     | 'engagement' | 'targeting'
-    | 'video' | 'devices' | 'placements' | 'dow';
+    | 'dow' | 'daily';
   const [perfTab, setPerfTab] = useState<PerfTab>('campaigns');
   const [engagement,       setEngagement]       = useState<EngagementRow[]>([]);
   const [videoWatch,       setVideoWatch]       = useState<VideoWatchResult>({ videoViews: 0, funnel: [] });
@@ -595,34 +574,123 @@ export default function MetaPage() {
           />
         </ChartContainer>
 
-        <ChartContainer title="Daily Summary">
-          <DailySummaryTable
-            data={dailyRows as unknown as Record<string, unknown>[]}
-            columns={DAILY_COLUMNS}
-            sortable
-            initialSort={{ key: 'date', direction: 'desc' }}
-            totalsRow={dailyTotals as unknown as Record<string, unknown>}
-            paginate={10}
-          />
-        </ChartContainer>
+        {/* Three 1/3-width horizontal bar charts: Video Watch Funnel, Devices,
+            Placements. All account-level. Label widths trimmed to fit 1/3
+            columns. Wraps to stacked when a column can't hold 260px. */}
+        {(() => {
+          const funnelMax = videoWatch.funnel.reduce((m, r) => Math.max(m, r.count), 0);
+          const deviceMax = devicesData.devices.reduce((m, r) => Math.max(m, r.impressions), 0);
+          const placeMax  = devicesData.placements.reduce((m, r) => Math.max(m, r.impressions), 0);
+          const panels: {
+            title: string;
+            emptyLabel: string;
+            rows: { key: string; label: string; barPct: number; primary: string; secondary: string }[];
+          }[] = [
+            {
+              title: 'Video Watch Funnel',
+              emptyLabel: 'No video watch data in the selected window.',
+              rows: videoWatch.funnel.map(r => ({
+                key: r.milestone,
+                label: r.milestone,
+                barPct: funnelMax > 0 ? (r.count / funnelMax) * 100 : 0,
+                primary: fmtInt(r.count),
+                secondary: r.rate == null ? '—' : `${Number(r.rate).toFixed(1)}%`,
+              })),
+            },
+            {
+              title: 'Devices',
+              emptyLabel: 'No device data in the selected window.',
+              rows: devicesData.devices.map(r => ({
+                key: r.name,
+                label: r.name,
+                barPct: deviceMax > 0 ? (r.impressions / deviceMax) * 100 : 0,
+                primary: fmtInt(r.impressions),
+                secondary: `${fmtInt(r.clicks)} clk`,
+              })),
+            },
+            {
+              title: 'Placements',
+              emptyLabel: 'No placement data in the selected window.',
+              rows: devicesData.placements.map(r => ({
+                key: r.name,
+                label: r.name,
+                barPct: placeMax > 0 ? (r.impressions / placeMax) * 100 : 0,
+                primary: fmtInt(r.impressions),
+                secondary: `${fmtInt(r.clicks)} clk`,
+              })),
+            },
+          ];
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
+              {panels.map(panel => (
+                <div key={panel.title} style={{ flex: '1 1 260px', minWidth: 0 }}>
+                  <ChartContainer title={panel.title}>
+                    <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                      {panel.rows.length === 0 || panel.rows.every(r => r.barPct === 0) ? (
+                        <div style={{ padding: spacing.md, color: colors.text.secondary, fontSize: typography.fontSize.sm, textAlign: 'center' }}>
+                          {panel.emptyLabel}
+                        </div>
+                      ) : panel.rows.map(row => (
+                        <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                          <div style={{
+                            width: 90,
+                            flexShrink: 0,
+                            fontSize: typography.fontSize.xs,
+                            fontWeight: typography.fontWeight.semibold,
+                            color: colors.text.primary,
+                            textAlign: 'right',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }} title={row.label}>
+                            {row.label}
+                          </div>
+                          <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 30 }}>
+                            <div style={{
+                              width: `${row.barPct}%`,
+                              height: '100%',
+                              backgroundColor: colors.ui.teal,
+                              transition: 'width 240ms ease-out',
+                            }} />
+                          </div>
+                          <div style={{
+                            width: 90,
+                            flexShrink: 0,
+                            fontSize: typography.fontSize.xs,
+                            color: colors.text.primary,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: 4,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}>
+                            <span style={{ fontWeight: typography.fontWeight.semibold }}>{row.primary}</span>
+                            <span style={{ color: colors.text.secondary }}>{row.secondary}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ChartContainer>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
-        {/* One consolidated tabbed table — folds the nine previous standalone
-            table/panel sections (Campaigns, Ad Sets, Ads, Engagement,
-            Targeting, Video Watch, Devices, Placements, Day of Week) into
-            a single card with a tab row. Cuts the page section count by 8. */}
+        {/* One consolidated tabbed table — folds Campaigns / Ad Sets / Ads /
+            Engagement / Targeting / Day of Week / Daily Summary into a
+            single card with a tab row. The 3-panel bar-chart row above
+            stays visual (Video Watch, Devices, Placements). */}
         <ChartContainer title="Performance">
           <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
             <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>View:</span>
             {([
-              { key: 'campaigns',  label: 'Campaigns'   },
-              { key: 'adsets',     label: 'Ad Sets'     },
-              { key: 'ads',        label: 'Ads'         },
-              { key: 'engagement', label: 'Engagement'  },
-              { key: 'targeting',  label: 'Targeting'   },
-              { key: 'video',      label: 'Video Watch' },
-              { key: 'devices',    label: 'Devices'     },
-              { key: 'placements', label: 'Placements'  },
-              { key: 'dow',        label: 'Day of Week' },
+              { key: 'campaigns',  label: 'Campaigns'     },
+              { key: 'adsets',     label: 'Ad Sets'       },
+              { key: 'ads',        label: 'Ads'           },
+              { key: 'engagement', label: 'Engagement'    },
+              { key: 'targeting',  label: 'Targeting'     },
+              { key: 'dow',        label: 'Day of Week'   },
+              { key: 'daily',      label: 'Daily Summary' },
             ] as { key: PerfTab; label: string }[]).map(opt => {
               const active = perfTab === opt.key;
               return (
@@ -702,40 +770,23 @@ export default function MetaPage() {
                     paginate={20}
                   />
                 );
-              case 'video':
-                return (
-                  <DailySummaryTable
-                    data={videoWatch.funnel as unknown as DailyRow[]}
-                    columns={VIDEO_WATCH_COLUMNS}
-                    paginate={20}
-                  />
-                );
-              case 'devices':
-                return (
-                  <DailySummaryTable
-                    data={devicesData.devices as unknown as DailyRow[]}
-                    columns={DEVICE_PLACEMENT_COLUMNS}
-                    sortable
-                    initialSort={{ key: 'impressions', direction: 'desc' }}
-                    paginate={20}
-                  />
-                );
-              case 'placements':
-                return (
-                  <DailySummaryTable
-                    data={devicesData.placements as unknown as DailyRow[]}
-                    columns={DEVICE_PLACEMENT_COLUMNS}
-                    sortable
-                    initialSort={{ key: 'impressions', direction: 'desc' }}
-                    paginate={20}
-                  />
-                );
               case 'dow':
                 return (
                   <DailySummaryTable
                     data={dowData as unknown as DailyRow[]}
                     columns={DOW_COLUMNS}
                     paginate={20}
+                  />
+                );
+              case 'daily':
+                return (
+                  <DailySummaryTable
+                    data={dailyRows as unknown as Record<string, unknown>[]}
+                    columns={DAILY_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'date', direction: 'desc' }}
+                    totalsRow={dailyTotals as unknown as Record<string, unknown>}
+                    paginate={10}
                   />
                 );
               case 'campaigns':
