@@ -86,10 +86,9 @@ const BROWSER_OS_COLUMNS: DSTColumn[] = [
   { key: 'engaged_sessions', label: 'Engaged Sessions',numeric: true, render: r => Number(r.engaged_sessions || 0).toLocaleString() },
   { key: 'engagement_rate',  label: 'Engagement Rate', numeric: true, render: r => `${Number(r.engagement_rate || 0).toFixed(2)}%` },
 ];
-const LEAD_EVENT_COLUMNS: DSTColumn[] = [
-  { key: 'event_name', label: 'Event',  align: 'left' },
-  { key: 'count',      label: 'Count',  numeric: true, render: r => Number(r.count || 0).toLocaleString() },
-];
+// Custom Events columns are built inside the component (leadEventColumns
+// below) because the bar cell needs to know the max-count in the current
+// dataset to size proportionally.
 const GEOGRAPHY_COLUMNS: DSTColumn[] = [
   { key: 'country', label: 'Country', align: 'left' },
   { key: 'users',   label: 'Users',   numeric: true, render: r => Number(r.users || 0).toLocaleString() },
@@ -251,6 +250,58 @@ export default function Ga4Page() {
   }, [ga4Trend]);
 
   // Daily Summary totals row — session-weighted derived rates.
+  // Custom Events column config — built inside the component so the bar
+  // column can close over the current-max count. Bar width is a % of the
+  // top event's count so relative volume is legible even when the range
+  // between top and bottom is large.
+  const leadEventColumns = useMemo<DSTColumn[]>(() => {
+    const max = leadEvents.reduce((m, r) => Math.max(m, Number(r.count ?? 0)), 0);
+    return [
+      { key: 'event_name', label: 'Event', align: 'left' },
+      {
+        key: 'bar',
+        label: '',
+        align: 'left',
+        render: r => {
+          const c   = Number(r.count ?? 0);
+          const pct = max > 0 ? (c / max) * 100 : 0;
+          return (
+            <div style={{ position: 'relative', width: '100%', minWidth: 160, height: 18, backgroundColor: colors.background.panel }}>
+              <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+            </div>
+          );
+        },
+      },
+      { key: 'count', label: 'Count', numeric: true, render: r => Number(r.count || 0).toLocaleString() },
+    ];
+  }, [leadEvents]);
+
+  // Top Pages column config — same bar-cell treatment, sized to the top
+  // page's view count. Bar sits between path and page_views so the eye
+  // can compare distribution across pages at a glance.
+  const topPagesColumns = useMemo<DSTColumn[]>(() => {
+    const max = topPages.reduce((m, r) => Math.max(m, Number(r.page_views ?? 0)), 0);
+    return [
+      { key: 'page_path', label: 'Page Path', align: 'left' },
+      {
+        key: 'bar',
+        label: '',
+        align: 'left',
+        render: r => {
+          const v   = Number(r.page_views ?? 0);
+          const pct = max > 0 ? (v / max) * 100 : 0;
+          return (
+            <div style={{ position: 'relative', width: '100%', minWidth: 160, height: 18, backgroundColor: colors.background.panel }}>
+              <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+            </div>
+          );
+        },
+      },
+      { key: 'page_views', label: 'Page Views', numeric: true, render: r => Number(r.page_views || 0).toLocaleString() },
+      { key: 'users',      label: 'Users',      numeric: true, render: r => Number(r.users      || 0).toLocaleString() },
+    ];
+  }, [topPages]);
+
   const dailyTotals = useMemo(() => {
     const users            = ga4Trend.reduce((s, r) => s + r.total_users,      0);
     const new_users        = ga4Trend.reduce((s, r) => s + r.new_users,        0);
@@ -664,7 +715,7 @@ export default function Ga4Page() {
                 return (
                   <DailySummaryTable
                     data={topPages as unknown as Record<string, unknown>[]}
-                    columns={TOP_PAGES_COLUMNS}
+                    columns={topPagesColumns}
                     sortable
                     initialSort={{ key: 'page_views', direction: 'desc' }}
                     paginate={20}
@@ -684,7 +735,7 @@ export default function Ga4Page() {
                 return (
                   <DailySummaryTable
                     data={leadEvents as unknown as Record<string, unknown>[]}
-                    columns={LEAD_EVENT_COLUMNS}
+                    columns={leadEventColumns}
                     sortable
                     initialSort={{ key: 'count', direction: 'desc' }}
                     paginate={20}
