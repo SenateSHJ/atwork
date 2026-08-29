@@ -82,8 +82,9 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
         if (igMediaId) {
           // Public IG-media-id → shortcode conversion (base64-alphabet chunking).
           const ALPH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+          const ZERO = BigInt(0), SIX_MASK = BigInt(63), SIX = BigInt(6);
           let n = BigInt(igMediaId), sc = '';
-          while (n > 0n) { sc = ALPH[Number(n & 63n)] + sc; n >>= 6n; }
+          while (n > ZERO) { sc = ALPH[Number(n & SIX_MASK)] + sc; n >>= SIX; }
           if (sc) {
             return (
               <iframe
