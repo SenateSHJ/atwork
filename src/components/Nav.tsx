@@ -23,6 +23,7 @@ const INTERNAL_NAV = [
   { label: 'Health',           to: '/internal/health'           },
   { label: 'Weld Connections', to: '/internal/weld-connections' },
   { label: 'Data Tables',      to: '/internal/data-tables'      },
+  { label: 'PRISM Settings',   to: '/internal/settings'         },
 ];
 
 const TIER_ENTRY: Record<Tier, string> = {

@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@google-cloud/bigquery": "^7.9.4",
+    "@prism/executive-summaries": "github:ScottDudley1/prism-executive-summaries",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.47.0",
     "clsx": "^2.1.1",
