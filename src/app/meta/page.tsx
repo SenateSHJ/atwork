@@ -168,12 +168,32 @@ const ENGAGEMENT_COLUMNS: DSTColumn[] = [
 ];
 
 // Video Watch Funnel — one row per milestone across the selected window,
-// count + % of 25% Watched (funnel entry point). Video Views is displayed
-// standalone above the table because it uses a different Meta definition.
-const _VIDEO_WATCH_COLUMNS: DSTColumn[] = [
+// count + % of 25% Watched (funnel entry point).
+const VIDEO_WATCH_COLUMNS: DSTColumn[] = [
   { key: 'milestone', label: 'Milestone',   align: 'left' },
   { key: 'count',     label: 'Count',       numeric: true, render: r => Number(r.count || 0).toLocaleString() },
   { key: 'rate',      label: '% of 25%',    numeric: true, render: r => r.rate == null ? '—' : `${Number(r.rate).toFixed(1)}%` },
+];
+
+// Devices + Placements share a shape (name / impressions / clicks) — CTR is
+// derived at render time since the query doesn't ship it pre-computed.
+const DEVICE_PLACEMENT_COLUMNS: DSTColumn[] = [
+  { key: 'name',        label: 'Name',        align: 'left' },
+  { key: 'impressions', label: 'Impressions', numeric: true, render: r => Number(r.impressions || 0).toLocaleString() },
+  { key: 'clicks',      label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
+  { key: 'ctr',         label: 'CTR',         numeric: true, render: r => {
+    const impr = Number(r.impressions || 0);
+    const clk  = Number(r.clicks      || 0);
+    return impr ? `${((clk / impr) * 100).toFixed(2)}%` : '—';
+  } },
+];
+
+const DOW_COLUMNS: DSTColumn[] = [
+  { key: 'weekday',     label: 'Day',         align: 'left' },
+  { key: 'spend',       label: 'Spend',       numeric: true, render: r => `$${Math.round(Number(r.spend       || 0)).toLocaleString()}` },
+  { key: 'impressions', label: 'Impressions', numeric: true, render: r => Number(r.impressions || 0).toLocaleString() },
+  { key: 'clicks',      label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
+  { key: 'ctr',         label: 'CTR',         numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
 ];
 
 const TARGETING_COLUMNS: DSTColumn[] = [
@@ -224,8 +244,11 @@ export default function MetaPage() {
   const [entityCampaigns,  setEntityCampaigns]  = useState<EntityRow[]>([]);
   const [entityAdsets,     setEntityAdsets]     = useState<EntityRow[]>([]);
   const [entityAds,        setEntityAds]        = useState<EntityRow[]>([]);
-  type MetaGroupBy = 'campaigns' | 'adsets' | 'ads';
-  const [metaGroupBy, setMetaGroupBy] = useState<MetaGroupBy>('campaigns');
+  type PerfTab =
+    | 'campaigns' | 'adsets' | 'ads'
+    | 'engagement' | 'targeting'
+    | 'video' | 'devices' | 'placements' | 'dow';
+  const [perfTab, setPerfTab] = useState<PerfTab>('campaigns');
   const [engagement,       setEngagement]       = useState<EngagementRow[]>([]);
   const [videoWatch,       setVideoWatch]       = useState<VideoWatchResult>({ videoViews: 0, funnel: [] });
   const [targeting,        setTargeting]        = useState<TargetingRow[]>([]);
@@ -572,108 +595,6 @@ export default function MetaPage() {
           />
         </ChartContainer>
 
-        {/* Three 1/3-width horizontal bar charts: Video Watch Funnel, Devices,
-            Placements. All account-level. Label widths trimmed to fit 1/3
-            columns. Wraps to stacked when a column can't hold 260px. */}
-        {(() => {
-          const funnelMax = videoWatch.funnel.reduce((m, r) => Math.max(m, r.count), 0);
-          const deviceMax = devicesData.devices.reduce((m, r) => Math.max(m, r.impressions), 0);
-          const placeMax  = devicesData.placements.reduce((m, r) => Math.max(m, r.impressions), 0);
-          const panels: {
-            title: string;
-            emptyLabel: string;
-            rows: { key: string; label: string; barPct: number; primary: string; secondary: string }[];
-          }[] = [
-            {
-              title: 'Video Watch Funnel',
-              emptyLabel: 'No video watch data in the selected window.',
-              rows: videoWatch.funnel.map(r => ({
-                key: r.milestone,
-                label: r.milestone,
-                barPct: funnelMax > 0 ? (r.count / funnelMax) * 100 : 0,
-                primary: fmtInt(r.count),
-                secondary: r.rate == null ? '—' : `${Number(r.rate).toFixed(1)}%`,
-              })),
-            },
-            {
-              title: 'Devices',
-              emptyLabel: 'No device data in the selected window.',
-              rows: devicesData.devices.map(r => ({
-                key: r.name,
-                label: r.name,
-                barPct: deviceMax > 0 ? (r.impressions / deviceMax) * 100 : 0,
-                primary: fmtInt(r.impressions),
-                secondary: `${fmtInt(r.clicks)} clk`,
-              })),
-            },
-            {
-              title: 'Placements',
-              emptyLabel: 'No placement data in the selected window.',
-              rows: devicesData.placements.map(r => ({
-                key: r.name,
-                label: r.name,
-                barPct: placeMax > 0 ? (r.impressions / placeMax) * 100 : 0,
-                primary: fmtInt(r.impressions),
-                secondary: `${fmtInt(r.clicks)} clk`,
-              })),
-            },
-          ];
-          return (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
-              {panels.map(panel => (
-                <div key={panel.title} style={{ flex: '1 1 260px', minWidth: 0 }}>
-                  <ChartContainer title={panel.title}>
-                    <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                      {panel.rows.length === 0 || panel.rows.every(r => r.barPct === 0) ? (
-                        <div style={{ padding: spacing.md, color: colors.text.secondary, fontSize: typography.fontSize.sm, textAlign: 'center' }}>
-                          {panel.emptyLabel}
-                        </div>
-                      ) : panel.rows.map(row => (
-                        <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                          <div style={{
-                            width: 90,
-                            flexShrink: 0,
-                            fontSize: typography.fontSize.xs,
-                            fontWeight: typography.fontWeight.semibold,
-                            color: colors.text.primary,
-                            textAlign: 'right',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }} title={row.label}>
-                            {row.label}
-                          </div>
-                          <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 30 }}>
-                            <div style={{
-                              width: `${row.barPct}%`,
-                              height: '100%',
-                              backgroundColor: colors.ui.teal,
-                              transition: 'width 240ms ease-out',
-                            }} />
-                          </div>
-                          <div style={{
-                            width: 90,
-                            flexShrink: 0,
-                            fontSize: typography.fontSize.xs,
-                            color: colors.text.primary,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            gap: 4,
-                            fontVariantNumeric: 'tabular-nums',
-                          }}>
-                            <span style={{ fontWeight: typography.fontWeight.semibold }}>{row.primary}</span>
-                            <span style={{ color: colors.text.secondary }}>{row.secondary}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ChartContainer>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
         <ChartContainer title="Daily Summary">
           <DailySummaryTable
             data={dailyRows as unknown as Record<string, unknown>[]}
@@ -685,23 +606,29 @@ export default function MetaPage() {
           />
         </ChartContainer>
 
-        {/* One consolidated grouped table — replaces the previous 3 standalone
-            tables (Campaigns, Ad Sets, Ads). Group By dropdown swaps the data
-            + entity column config. Defaults to Campaigns. Mirrors the Snainton
-            SalesPage.tsx pattern. */}
+        {/* One consolidated tabbed table — folds the nine previous standalone
+            table/panel sections (Campaigns, Ad Sets, Ads, Engagement,
+            Targeting, Video Watch, Devices, Placements, Day of Week) into
+            a single card with a tab row. Cuts the page section count by 8. */}
         <ChartContainer title="Performance">
           <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
-            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>Group by:</span>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>View:</span>
             {([
-              { key: 'campaigns', label: 'Campaigns' },
-              { key: 'adsets',    label: 'Ad Sets'   },
-              { key: 'ads',       label: 'Ads'       },
-            ] as { key: MetaGroupBy; label: string }[]).map(opt => {
-              const active = metaGroupBy === opt.key;
+              { key: 'campaigns',  label: 'Campaigns'   },
+              { key: 'adsets',     label: 'Ad Sets'     },
+              { key: 'ads',        label: 'Ads'         },
+              { key: 'engagement', label: 'Engagement'  },
+              { key: 'targeting',  label: 'Targeting'   },
+              { key: 'video',      label: 'Video Watch' },
+              { key: 'devices',    label: 'Devices'     },
+              { key: 'placements', label: 'Placements'  },
+              { key: 'dow',        label: 'Day of Week' },
+            ] as { key: PerfTab; label: string }[]).map(opt => {
+              const active = perfTab === opt.key;
               return (
                 <button
                   key={opt.key}
-                  onClick={() => setMetaGroupBy(opt.key)}
+                  onClick={() => setPerfTab(opt.key)}
                   style={{
                     padding: '6px 12px',
                     fontSize: typography.fontSize.sm,
@@ -720,7 +647,7 @@ export default function MetaPage() {
             })}
           </div>
           {(() => {
-            switch (metaGroupBy) {
+            switch (perfTab) {
               case 'adsets':
                 return (
                   <DailySummaryTable
@@ -729,7 +656,7 @@ export default function MetaPage() {
                     sortable
                     initialSort={{ key: 'spend', direction: 'desc' }}
                     paginate={20}
-            />
+                  />
                 );
               case 'ads':
                 return (
@@ -740,18 +667,76 @@ export default function MetaPage() {
                       sortable
                       initialSort={{ key: 'spend', direction: 'desc' }}
                       paginate={20}
-            />
+                    />
                     {hiddenAdsCount > 0 && (
-                      <div style={{
-                        marginTop: spacing.sm,
-                        textAlign: 'right',
-                        fontSize: typography.fontSize.xs,
-                        color: colors.text.secondary,
-                      }}>
+                      <div style={{ marginTop: spacing.sm, textAlign: 'right', fontSize: typography.fontSize.xs, color: colors.text.secondary }}>
                         {hiddenAdsCount} ad{hiddenAdsCount === 1 ? '' : 's'} hidden — spend below ${ADS_SPEND_THRESHOLD} over the selected range.
                       </div>
                     )}
                   </>
+                );
+              case 'engagement':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={visibleEngagement as unknown as DailyRow[]}
+                      columns={ENGAGEMENT_COLUMNS}
+                      sortable
+                      initialSort={{ key: 'post_engagement', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {hiddenEngagementCount > 0 && (
+                      <div style={{ marginTop: spacing.sm, textAlign: 'right', fontSize: typography.fontSize.xs, color: colors.text.secondary }}>
+                        {hiddenEngagementCount} ad{hiddenEngagementCount === 1 ? '' : 's'} hidden — post engagement below {ENGAGEMENT_THRESHOLD} over the selected range.
+                      </div>
+                    )}
+                  </>
+                );
+              case 'targeting':
+                return (
+                  <DailySummaryTable
+                    data={targeting as unknown as DailyRow[]}
+                    columns={TARGETING_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'spend', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+              case 'video':
+                return (
+                  <DailySummaryTable
+                    data={videoWatch.funnel as unknown as DailyRow[]}
+                    columns={VIDEO_WATCH_COLUMNS}
+                    paginate={20}
+                  />
+                );
+              case 'devices':
+                return (
+                  <DailySummaryTable
+                    data={devicesData.devices as unknown as DailyRow[]}
+                    columns={DEVICE_PLACEMENT_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'impressions', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+              case 'placements':
+                return (
+                  <DailySummaryTable
+                    data={devicesData.placements as unknown as DailyRow[]}
+                    columns={DEVICE_PLACEMENT_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'impressions', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+              case 'dow':
+                return (
+                  <DailySummaryTable
+                    data={dowData as unknown as DailyRow[]}
+                    columns={DOW_COLUMNS}
+                    paginate={20}
+                  />
                 );
               case 'campaigns':
               default:
@@ -762,68 +747,10 @@ export default function MetaPage() {
                     sortable
                     initialSort={{ key: 'spend', direction: 'desc' }}
                     paginate={20}
-            />
+                  />
                 );
             }
           })()}
-        </ChartContainer>
-
-        <ChartContainer title="Engagement (per ad)">
-          <DailySummaryTable
-            data={visibleEngagement as unknown as DailyRow[]}
-            columns={ENGAGEMENT_COLUMNS}
-            sortable
-            initialSort={{ key: 'post_engagement', direction: 'desc' }}
-            paginate={20}
-            />
-          {hiddenEngagementCount > 0 && (
-            <div style={{
-              marginTop: spacing.sm,
-              textAlign: 'right',
-              fontSize: typography.fontSize.xs,
-              color: colors.text.secondary,
-            }}>
-              {hiddenEngagementCount} ad{hiddenEngagementCount === 1 ? '' : 's'} hidden — post engagement below {ENGAGEMENT_THRESHOLD} over the selected range.
-            </div>
-          )}
-        </ChartContainer>
-
-        {dowData.some(d => d.spend > 0) && (
-          <ChartContainer title="Performance by Day of Week">
-            <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {(() => {
-                const maxSpend = Math.max(...dowData.map(d => d.spend));
-                return dowData.map(d => {
-                  const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
-                  return (
-                    <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                      <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
-                        {d.weekday}
-                      </div>
-                      <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
-                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
-                      </div>
-                      <div style={{ width: 220, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
-                        <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
-                        <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
-                        <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </ChartContainer>
-        )}
-
-        <ChartContainer title="Targeting (per ad set)">
-          <DailySummaryTable
-            data={targeting as unknown as DailyRow[]}
-            columns={TARGETING_COLUMNS}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            paginate={20}
-            />
         </ChartContainer>
 
       </div>
