@@ -19,6 +19,7 @@ import {
   fetchAboveFold, fetchBelowFold, getFilterOptions,
   type Ga4Filters, type Ga4FilterOptions, type Ga4Totals, type Ga4TrendPoint,
   type Ga4TrafficRow, type Ga4PageRow, type Ga4DeviceRow, type Ga4BrowserOsRow, type Ga4LeadEventRow,
+  type Ga4UtmRow, type Ga4PlatformRow,
 } from './actions';
 import type { AgencyRow, TrendRow } from '../meta/actions';
 import { fmtDuration } from '@/lib/fmt';
@@ -79,6 +80,27 @@ const TOP_PAGES_COLUMNS: DSTColumn[] = [
   { key: 'page_views', label: 'Page Views', numeric: true, render: r => Number(r.page_views || 0).toLocaleString() },
   { key: 'users',      label: 'Users',      numeric: true, render: r => Number(r.users      || 0).toLocaleString() },
 ];
+// UTM Campaigns — from bronze.ga4_campaign_performance. Sourced by the
+// UTM `campaign` parameter (session_campaign_name) — utm_source /
+// utm_medium / utm_content / utm_term are NOT synced by Weld.
+const UTM_COLUMNS: DSTColumn[] = [
+  { key: 'campaign',         label: 'Campaign',         align: 'left' },
+  { key: 'sessions',         label: 'Sessions',         numeric: true, render: r => Number(r.sessions || 0).toLocaleString() },
+  { key: 'users',            label: 'Users',            numeric: true, render: r => Number(r.users || 0).toLocaleString() },
+  { key: 'engaged_sessions', label: 'Engaged Sessions', numeric: true, render: r => Number(r.engaged_sessions || 0).toLocaleString() },
+  { key: 'conversions',      label: 'Conversions',      numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
+];
+// Ad Platforms — from bronze.ga4_social_media. Table name is misleading:
+// the session_source_platform dimension returns paid-ad platforms
+// (Google Ads, Meta Ads, LinkedIn Ads, Other Ads, Unlabeled) not organic
+// social. Referrer URLs are not synced by Weld.
+const PLATFORM_COLUMNS: DSTColumn[] = [
+  { key: 'platform',         label: 'Platform',         align: 'left' },
+  { key: 'sessions',         label: 'Sessions',         numeric: true, render: r => Number(r.sessions || 0).toLocaleString() },
+  { key: 'users',            label: 'Users',            numeric: true, render: r => Number(r.users || 0).toLocaleString() },
+  { key: 'engaged_sessions', label: 'Engaged Sessions', numeric: true, render: r => Number(r.engaged_sessions || 0).toLocaleString() },
+  { key: 'conversions',      label: 'Conversions',      numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
+];
 const BROWSER_OS_COLUMNS: DSTColumn[] = [
   { key: 'operating_system', label: 'OS',              align: 'left' },
   { key: 'browser',          label: 'Browser',         align: 'left' },
@@ -107,12 +129,14 @@ export default function Ga4Page() {
   const [devices,          setDevices]          = useState<Ga4DeviceRow[]>([]);
   const [browserOs,        setBrowserOs]        = useState<Ga4BrowserOsRow[]>([]);
   const [leadEvents,       setLeadEvents]       = useState<Ga4LeadEventRow[]>([]);
+  const [utmCampaigns,     setUtmCampaigns]     = useState<Ga4UtmRow[]>([]);
+  const [platforms,        setPlatforms]        = useState<Ga4PlatformRow[]>([]);
   const [fallbackActive,   setFallbackActive]   = useState(false);
   const [bannerDismissed,  setBannerDismissed]  = useState(readBannerDismissed);
 
   type PerfTab =
     | 'daily' | 'traffic' | 'toppages' | 'browserOs'
-    | 'leadEvents' | 'landingPages';
+    | 'leadEvents' | 'utm' | 'platforms' | 'landingPages';
   const [perfTab, setPerfTab] = useState<PerfTab>('daily');
 
   type TrendTab =
@@ -160,6 +184,8 @@ export default function Ga4Page() {
       setDevices(data.devices);
       setBrowserOs(data.browserOs);
       setLeadEvents(data.leadEvents);
+      setUtmCampaigns(data.utm);
+      setPlatforms(data.platforms);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -671,6 +697,8 @@ export default function Ga4Page() {
               { key: 'toppages',     label: 'Top Pages'       },
               { key: 'browserOs',    label: 'Browser & OS'    },
               { key: 'leadEvents',   label: 'Custom Events'   },
+              { key: 'utm',          label: 'UTM Campaigns'   },
+              { key: 'platforms',    label: 'Ad Platforms'    },
               { key: 'landingPages', label: 'Landing Pages'   },
             ] as { key: PerfTab; label: string }[]).map(opt => {
               const active = perfTab === opt.key;
@@ -734,6 +762,26 @@ export default function Ga4Page() {
                     columns={leadEventColumns}
                     sortable
                     initialSort={{ key: 'count', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+              case 'utm':
+                return (
+                  <DailySummaryTable
+                    data={utmCampaigns as unknown as Record<string, unknown>[]}
+                    columns={UTM_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'sessions', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+              case 'platforms':
+                return (
+                  <DailySummaryTable
+                    data={platforms as unknown as Record<string, unknown>[]}
+                    columns={PLATFORM_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'sessions', direction: 'desc' }}
                     paginate={20}
                   />
                 );

@@ -3,6 +3,7 @@
 import {
   getGa4LeadEvents, getGa4Trend,
   getGa4Channels, getGa4Devices, getGa4BrowserOs, getGa4TopPages,
+  getGa4Campaigns, getGa4Social,
 } from '@/lib/queries/ga4';
 import type {
   Totals, DailyRow, AgencyRow, TrendRow,
@@ -88,6 +89,30 @@ export interface Ga4BrowserOsRow {
 export interface Ga4LeadEventRow {
   event_name: string;
   count:      number;
+}
+// UTM Campaign performance — sourced from bronze.ga4_campaign_performance
+// (session_campaign_name × sessions/users/engaged/conversions). Weld's GA4
+// connector does NOT ship utm_source, utm_medium, utm_content, or utm_term
+// as separate columns — only the campaign name — so this is the finest
+// UTM-attribution we can surface without a connector expansion.
+export interface Ga4UtmRow {
+  campaign:         string;
+  sessions:         number;
+  users:            number;
+  engaged_sessions: number;
+  conversions:      number;
+}
+// Ad-platform referrals — sourced from bronze.ga4_social_media
+// (session_source_platform). Despite the "social_media" table name the
+// dimension returns paid-ad platforms (Google Ads, Meta Ads, LinkedIn Ads,
+// Other Ads, Unlabeled) not organic social — hence the "Ad Platforms"
+// label in the UI. True referrer-URL data is not synced by Weld.
+export interface Ga4PlatformRow {
+  platform:         string;
+  sessions:         number;
+  users:            number;
+  engaged_sessions: number;
+  conversions:      number;
 }
 
 export async function getFilterOptions(startDate: string, endDate: string): Promise<Ga4FilterOptions> {
@@ -208,15 +233,19 @@ export async function fetchBelowFold(startDate: string, endDate: string, _filter
   devices:     Ga4DeviceRow[];
   browserOs:   Ga4BrowserOsRow[];
   leadEvents:  Ga4LeadEventRow[];
+  utm:         Ga4UtmRow[];
+  platforms:   Ga4PlatformRow[];
 }> {
   const range = { from: startDate, to: endDate };
-  const [rawTrend, channels, pages, devices, browserOs, leads] = await Promise.all([
+  const [rawTrend, channels, pages, devices, browserOs, leads, utmCamps, plats] = await Promise.all([
     getGa4Trend(range),
     getGa4Channels(range),
     getGa4TopPages(range, 50),
     getGa4Devices(range),
     getGa4BrowserOs(range),
     getGa4LeadEvents(range),
+    getGa4Campaigns(range, 200),  // higher limit than the query default so the tab shows the long tail
+    getGa4Social(range),
   ]);
   const { trimmed: trend } = trimIncompleteTail(rawTrend);
   // Map the Ga4TrendPoint set into the shared TrendRow shape so the Metric
@@ -264,6 +293,20 @@ export async function fetchBelowFold(startDate: string, endDate: string, _filter
       engagement_rate:  b.engagement_rate_pct,
     })),
     leadEvents: leads.map(l => ({ event_name: l.event_name, count: l.total })),
+    utm: utmCamps.map(c => ({
+      campaign:         c.campaign,
+      sessions:         c.sessions,
+      users:            c.total_users,
+      engaged_sessions: c.engaged_sessions,
+      conversions:      c.conversions,
+    })),
+    platforms: plats.map(p => ({
+      platform:         p.platform,
+      sessions:         p.sessions,
+      users:            p.total_users,
+      engaged_sessions: p.engaged_sessions,
+      conversions:      p.conversions,
+    })),
   };
 }
 
