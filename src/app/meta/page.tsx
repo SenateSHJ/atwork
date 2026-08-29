@@ -51,6 +51,16 @@ function daysAgo(n: number) {
 const fmtCtr   = (v: number | null) => v != null ? `${v.toFixed(2)}%` : '0.00%';
 const fmtMoney = (v: number | null) => v != null ? `$${v.toFixed(2)}` : '$0.00';
 const fmtInt   = (v: number)        => Math.round(v).toLocaleString();
+const fmtFreq  = (v: number | null) => v != null ? v.toFixed(2) : '—';
+
+// Period-over-period % change. Returns null when there's no baseline
+// (prior=0) — the scorecard will render "—" instead of "▲ Infinity%".
+function deltaPct(curr: number | null | undefined, prior: number | null | undefined): number | null {
+  const c = Number(curr ?? 0);
+  const p = Number(prior ?? 0);
+  if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null;
+  return ((c - p) / p) * 100;
+}
 // Table date column format — "21-Jul-2026" for real ISO dates, pass-through
 // for anything else (totals row uses "Total" as the value).
 const fmtDate  = (v: unknown) =>
@@ -209,6 +219,7 @@ export default function MetaPage() {
   const [filterOptions, setFilterOptions] = useState<MetaFilterOptions>({ campaigns: [], adsets: [], ads: [], creativeTypes: [], objectives: [] });
 
   const [summaryTotals,    setSummaryTotals]    = useState<Totals | null>(null);
+  const [priorTotals,      setPriorTotals]      = useState<Totals | null>(null);
   const [dailyRows,        setDailyRows]        = useState<DailyRow[]>([]);
   const [, setAgencyPerf]                       = useState<AgencyRow[]>([]);
   const [entityCampaigns,  setEntityCampaigns]  = useState<EntityRow[]>([]);
@@ -253,6 +264,22 @@ export default function MetaPage() {
     } catch (e) { console.error(e); }
   }, []);
 
+  // Prior-period fetch — same length window immediately before the current
+  // range, with the same filters applied so the delta is apples-to-apples.
+  // Reuses fetchAboveFold for identical semantics; cached() at the server
+  // action layer means repeat visits pay nothing.
+  const fetchPriorCb = useCallback(async (sd: string, ed: string, f: MetaFilters) => {
+    try {
+      const currStart = new Date(sd).getTime();
+      const currEnd   = new Date(ed).getTime();
+      const lenMs     = currEnd - currStart;
+      const priorEnd  = new Date(currStart - 86_400_000);
+      const priorStart = new Date(priorEnd.getTime() - lenMs);
+      const data = await fetchAboveFold(toIso(priorStart), toIso(priorEnd), f);
+      setPriorTotals(data.totals);
+    } catch (e) { console.error(e); }
+  }, []);
+
   // Heavy tables that stay behind the scroll sentinel. Split into two Promise.all
   // groups: the four medium fetches together, then targeting separately so if it
   // hangs it can't hold up engagement/video/devices.
@@ -279,7 +306,8 @@ export default function MetaPage() {
 
   useEffect(() => {
     fetchAboveFoldCb(startDate, endDate, filters);
-  }, [startDate, endDate, filters, fetchAboveFoldCb]);
+    fetchPriorCb    (startDate, endDate, filters);
+  }, [startDate, endDate, filters, fetchAboveFoldCb, fetchPriorCb]);
   useEffect(() => {
     if (belowFoldRequested) { fetchBelowFoldCb(startDate, endDate, filters); }
   }, [startDate, endDate, filters, belowFoldRequested, fetchBelowFoldCb]);
@@ -313,11 +341,14 @@ export default function MetaPage() {
   })), [dailyRows]);
 
   // Sparklines — widened; every tile gets a series. Null → 0 fallback per spec.
+  // Frequency is derived per day as impressions/reach (no baked-in field on
+  // dailyRows) — matches the totals-level derivation below.
   const spark = useMemo(() => ({
     spend:       dailyRows.map(d => d.spend_aud            ?? 0),
     impressions: dailyRows.map(d => d.impressions          ?? 0),
     clicks:      dailyRows.map(d => d.clicks               ?? 0),
     reach:       dailyRows.map(d => d.reach                ?? 0),
+    frequency:   dailyRows.map(d => d.reach ? d.impressions / d.reach : 0),
     ctr:         dailyRows.map(d => d.ctr                  ?? 0),
     cpc:         dailyRows.map(d => d.cpc                  ?? 0),
     cpm:         dailyRows.map(d => d.cpm                  ?? 0),
@@ -326,6 +357,11 @@ export default function MetaPage() {
     cpa:         dailyRows.map(d => d.cost_per_conversion  ?? 0),
     videoViews:  dailyRows.map(d => d.video_views          ?? 0),
   }), [dailyRows]);
+
+  // Frequency = impressions / reach at the totals level (Meta's canonical
+  // definition; a summed daily average would double-count returning users).
+  const frequency      = t?.reach ? (t.impressions / t.reach) : null;
+  const priorFrequency = priorTotals?.reach ? (priorTotals.impressions / priorTotals.reach) : null;
 
   // Daily Summary totals row — sums over the full range, matching the totals
   // convention (visible rows are paginated to 10 via Show More; totals are
@@ -480,26 +516,32 @@ export default function MetaPage() {
       </div>
 
       {/* ── Blue scorecards (atWork roster: summed range totals + ratios) ── */}
+      {/* 11 tiles laid out 6+5. Every tile carries a period-over-period
+          delta below the value; per-metric goodDirection tells the card
+          how to color the arrow (up-good for volume/efficiency, down-good
+          for unit costs, null for Spend where a bigger number isn't
+          inherently good or bad). */}
       <div
         className="scorecard-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 160px)',
+          gridTemplateColumns: 'repeat(6, 160px)',
           gap: spacing.sm,
           justifyContent: 'center',
           marginBottom: spacing.xs,
         }}
       >
-        <BFScorecard title="Spend"              value={fmtMoney(t?.spend_aud          ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" />
-        <BFScorecard title="Impressions"        value={fmtInt(t?.impressions          ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" />
-        <BFScorecard title="Clicks"             value={fmtInt(t?.clicks               ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" />
-        <BFScorecard title="Reach"              value={fmtInt(t?.reach                ?? 0)}    sparklineData={spark.reach}       color="blue" size="small" />
-        <BFScorecard title="CTR"                value={fmtCtr(t?.ctr                  ?? null)} sparklineData={spark.ctr}         color="blue" size="small" />
-        <BFScorecard title="CPC"                value={fmtMoney(t?.cpc                ?? null)} sparklineData={spark.cpc}         color="blue" size="small" />
-        <BFScorecard title="CPM"                value={fmtMoney(t?.cpm                ?? null)} sparklineData={spark.cpm}         color="blue" size="small" />
-        <BFScorecard title="Conversions"        value={fmtInt(t?.conversions          ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" />
-        <BFScorecard title="Cost per Conversion"value={fmtMoney(t?.cost_per_conversion?? null)} sparklineData={spark.cpa}         color="blue" size="small" />
-        <BFScorecard title="Video Views"        value={fmtInt(t?.video_views          ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" />
+        <BFScorecard title="Spend"              value={fmtMoney(t?.spend_aud          ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" delta={{ pct: deltaPct(t?.spend_aud,           priorTotals?.spend_aud),           goodDirection: null   }} />
+        <BFScorecard title="Impressions"        value={fmtInt(t?.impressions          ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" delta={{ pct: deltaPct(t?.impressions,         priorTotals?.impressions),         goodDirection: 'up'   }} />
+        <BFScorecard title="Clicks"             value={fmtInt(t?.clicks               ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" delta={{ pct: deltaPct(t?.clicks,              priorTotals?.clicks),              goodDirection: 'up'   }} />
+        <BFScorecard title="Reach"              value={fmtInt(t?.reach                ?? 0)}    sparklineData={spark.reach}       color="blue" size="small" delta={{ pct: deltaPct(t?.reach,               priorTotals?.reach),               goodDirection: 'up'   }} />
+        <BFScorecard title="Frequency"          value={fmtFreq(frequency)}                       sparklineData={spark.frequency}   color="blue" size="small" delta={{ pct: deltaPct(frequency,              priorFrequency),                   goodDirection: 'down' }} />
+        <BFScorecard title="CTR"                value={fmtCtr(t?.ctr                  ?? null)} sparklineData={spark.ctr}         color="blue" size="small" delta={{ pct: deltaPct(t?.ctr,                 priorTotals?.ctr),                 goodDirection: 'up'   }} />
+        <BFScorecard title="CPC"                value={fmtMoney(t?.cpc                ?? null)} sparklineData={spark.cpc}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpc,                 priorTotals?.cpc),                 goodDirection: 'down' }} />
+        <BFScorecard title="CPM"                value={fmtMoney(t?.cpm                ?? null)} sparklineData={spark.cpm}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpm,                 priorTotals?.cpm),                 goodDirection: 'down' }} />
+        <BFScorecard title="Conversions"        value={fmtInt(t?.conversions          ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" delta={{ pct: deltaPct(t?.conversions,         priorTotals?.conversions),         goodDirection: 'up'   }} />
+        <BFScorecard title="Cost per Conversion"value={fmtMoney(t?.cost_per_conversion?? null)} sparklineData={spark.cpa}         color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_conversion, priorTotals?.cost_per_conversion), goodDirection: 'down' }} />
+        <BFScorecard title="Video Views"        value={fmtInt(t?.video_views          ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" delta={{ pct: deltaPct(t?.video_views,         priorTotals?.video_views),         goodDirection: 'up'   }} />
       </div>
       <div
         style={{
