@@ -22,8 +22,7 @@
  */
 
 import type { ChannelConfig, ClientConfig, WordingOverride } from '@prism/executive-summaries';
-import { makeDefaultClientConfig } from '@prism/executive-summaries';
-import { AUTHORED_WORDING } from '@/lib/authored-wording.js';
+import { makeDefaultClientConfig, AUTHORED_WORDING } from '@prism/executive-summaries';
 
 const VERIFIED_AT = '2026-08-29T00:00:00Z';
 const VERIFIED_BY = 'atwork-clone';

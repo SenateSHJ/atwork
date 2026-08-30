@@ -264,11 +264,22 @@ async function upsertWording(configId: string): Promise<void> {
     template:    w.template,
     provisional: w.provisional ?? false,
   }));
+  // Delete-then-insert scoped to this config_id. Additive upsert leaves
+  // orphan rows when AUTHORED_WORDING shrinks or a row's model changes —
+  // those old rows stay in DB and can shadow newer authoring at resolve
+  // time. Delete-then-insert makes seed idempotent. Mirrors the pattern
+  // used by upsertChannelEvents / upsertChannelAttribution /
+  // upsertChannelContributions in this file, and the PRISM upstream fix
+  // to seed-example-client.ts landed the same day.
+  const { error: delErr } = await sb
+    .schema('reporting').from('config_wording')
+    .delete().eq('config_id', configId);
+  if (delErr) throw new Error(`upsertWording delete failed: ${delErr.message}`);
   if (rows.length === 0) return;
   const { error } = await sb
     .schema('reporting').from('config_wording')
-    .upsert(rows, { onConflict: 'config_id,key_type,rule_id,branch_key,locale,model' });
-  if (error) throw new Error(`upsertWording failed: ${error.message}`);
+    .insert(rows);
+  if (error) throw new Error(`upsertWording insert failed: ${error.message}`);
 }
 
 async function upsertRules(configId: string): Promise<void> {
