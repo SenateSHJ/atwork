@@ -7,8 +7,18 @@
 // engagement rates are exposed under metrics.custom for the engagement-
 // quality rule.
 
+// getGa4Conversions is intentionally NOT imported here. It reads
+// ga4_channels.conversions (GA4's native counter, a subset of the
+// LEAD_EVENTS whitelist) and computes a CR from ga4_channels.sessions.
+// atWork's report path defines "lead events" as the whitelist total
+// (getGa4LeadEvents), so having a second CR from a different numerator
+// and denominator meant anchor and classifier reasoned on different
+// numbers for the same "conversion rate" label. Dropped from the
+// report path per Scott 2026-08-30; the /ga4 dashboard page (which
+// uses ga4_channels-derived CR by design) still calls getGa4Conversions
+// directly and is unaffected.
 import {
-  getGa4Summary, getGa4Conversions, getGa4LeadEvents, getGa4Trend,
+  getGa4Summary, getGa4LeadEvents, getGa4Trend,
   getGa4Channels,
 } from '@/lib/queries/ga4';
 import type { DailyPoint, NormalisedPeriod, Entity } from '@prism/executive-summaries';
@@ -28,9 +38,8 @@ const CONVERSION_DEFINITION =
 
 export async function fetchAtWorkWebsitePeriod(month: string): Promise<NormalisedPeriod | null> {
   const range = monthBounds(month);
-  const [summary, conv, leads, trend, channels] = await Promise.all([
+  const [summary, leads, trend, channels] = await Promise.all([
     getGa4Summary(range),
-    getGa4Conversions(range),
     getGa4LeadEvents(range),
     getGa4Trend(range),
     getGa4Channels(range),
@@ -48,6 +57,17 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
   }
   const bounceRate = bounceSessions > 0 ? bounceWeighted / bounceSessions : null;
   const totalLeads = leads.reduce((s, l) => s + l.total, 0);
+
+  // One definition of conversion rate per section, per Scott 2026-08-30:
+  // whatever PRISM classifies on is what the anchor displays. Both
+  // metrics.conversions and metrics.custom.lead_events feed totalLeads
+  // (the LEAD_EVENTS whitelist sum from getGa4LeadEvents), so
+  // conversion_rate and conversion_rate_pct must derive from the same
+  // numerator over the same denominator (summary.sessions from
+  // ga4_overview, which is what custom.sessions feeds). Anchor's CR
+  // display, B2's classifier CR, and C2's per-entity decomposition all
+  // reason on the same lead_events / sessions arithmetic.
+  const conversionRatePct = summary.sessions > 0 ? (totalLeads / summary.sessions) * 100 : null;
 
   // Daily series from the existing getGa4Trend query.
   const daily: DailyPoint[] = trend.map(d => ({
@@ -110,7 +130,7 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
       cpc:                      null,
       cpm:                      null,
       cpa:                      null,
-      conversion_rate:          conv.conversion_rate,
+      conversion_rate:          conversionRatePct,
       conversion_value:         null,
       refund_value:             null,
       new_customer_conversions: null,
@@ -129,7 +149,7 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
         new_users:                summary.new_users,
         page_views:               summary.page_views,
         lead_events:              totalLeads,                   // PRISM alias
-        conversion_rate_pct:      conv.conversion_rate,         // PRISM alias
+        conversion_rate_pct:      conversionRatePct,            // PRISM alias — same numerator/denominator as metrics.conversion_rate above
         engaged_sessions:         summary.engaged_sessions,
         engagement_rate:          summary.engagement_rate,
         bounce_rate:              bounceRate,
