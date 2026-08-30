@@ -179,9 +179,9 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
     monthLabel: atworkMonthLabel(month),
     prior,
     priorLabel: atworkMonthLabel(prior),
-    meta:    composeSection(metaCur, metaPri, metaHist, 'Meta Ads',   config),
-    gads:    composeSection(gadsCur, gadsPri, gadsHist, 'Google Ads', config),
-    website: composeSection(webCur,  webPri,  webHist,  'Website',    config),
+    meta:    composeSection(metaCur, metaPri, metaHist, 'Meta Ads',   config, month, prior),
+    gads:    composeSection(gadsCur, gadsPri, gadsHist, 'Google Ads', config, month, prior),
+    website: composeSection(webCur,  webPri,  webHist,  'Website',    config, month, prior),
   };
 }
 
@@ -207,10 +207,19 @@ function composeSection(
   history: NormalisedPeriod[],
   label:   string,
   config:  ClientConfig,
+  month:   string,
+  priorMonthId: string,
 ): SectionReport {
   if (!current) {
+    // Empty-data section still names the period it covers. PRISM's
+    // basisSubtitle formatter runs from a Comparison and can't fire when
+    // current is null, so we reproduce the "Reporting on X compared to Y."
+    // shape here from the month labels. Anything else (verdict, chips,
+    // paragraphs, evidence) stays empty because there is nothing to say
+    // beyond "no data for this period".
+    const basis = `Reporting on ${atworkMonthLabel(month)} compared to ${atworkMonthLabel(priorMonthId)}.`;
     return {
-      ...emptySection(''),
+      ...emptySection(basis),
       paragraphs: [{ category: 'A', slot: 'anchor', text: `No ${label} data available for the selected month.` }],
     };
   }
