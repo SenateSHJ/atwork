@@ -102,25 +102,7 @@ export const AUTHORED_WORDING = [
         branch_key: "less_at_held_spend",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. The account produced less on {{spend_band_phrase}} budget. Efficiency fell by {{efficiency_delta_pct}}.|That is a fall not driven by a matching spend cut, so whatever caused it is still in place.",
-        provisional: false,
-    },
-    {
-        key_type: "finding_signal",
-        rule_id: "describeGrowthComposition",
-        branch_key: "less_at_held_spend__tier_0",
-        locale: "en-AU",
-        model: "lead_generation",
-        template: "The shape of the month. The account produced less on {{spend_band_phrase}} budget.|That is a fall not driven by a matching spend cut.",
-        provisional: false,
-    },
-    {
-        key_type: "finding_signal",
-        rule_id: "describeGrowthComposition",
-        branch_key: "less_at_held_spend__tier_1plus",
-        locale: "en-AU",
-        model: "lead_generation",
-        template: "The shape of the month. The account produced less on {{spend_band_phrase}} budget. Efficiency fell by {{efficiency_delta_pct}}.|That is a fall not driven by a matching spend cut, so whatever caused it is still in place.",
+        template: "The shape of the month. The account produced less on {{spend_band_phrase}} budget. Efficiency fell by {{efficiency_delta_pct}}.|That is less at held spend rather than a proportional pullback, and it is the more concerning of the two.|The drop is not explained by a material spend change, so whatever caused it is still in place.",
         provisional: false,
     },
     {
@@ -138,7 +120,7 @@ export const AUTHORED_WORDING = [
         branch_key: "stable",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. Spend {{spend_band_phrase_verb}}; {{primary_outcome_noun}} {{outcome_band_phrase}}.",
+        template: "The shape of the month. Spend and {{primary_outcome_noun}} both held. That is a stable month.",
         provisional: false,
     },
     {
@@ -156,7 +138,7 @@ export const AUTHORED_WORDING = [
         branch_key: "more_at_held_spend__tier_1plus",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. The account produced more on {{spend_band_phrase}} budget.|That is an efficiency improvement rather than volume growth, and it is the more durable of the two.|The improvement holds at the current spend level and does not depend on continued investment to sustain it.",
+        template: "The shape of the month. The account produced more on {{spend_band_phrase}} budget.|That is more at held spend rather than growth, and it is the more durable of the two.|The improvement holds at the current spend level and does not depend on continued investment to sustain it.",
         provisional: false,
     },
     {
@@ -174,7 +156,7 @@ export const AUTHORED_WORDING = [
         branch_key: "more_at_held_spend__tier_0",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. The account produced more on {{spend_band_phrase}} budget.|That is an efficiency improvement rather than volume growth, and it is the more durable of the two.|The improvement holds at the current spend level.",
+        template: "The shape of the month. The account produced more on {{spend_band_phrase}} budget.|That is more at held spend rather than growth, and it is the more durable of the two.|The improvement holds at the current spend level.",
         provisional: false,
     },
     {
@@ -201,7 +183,7 @@ export const AUTHORED_WORDING = [
         branch_key: "scaling_without_lift",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. Spend rose {{spend_delta_pct}} and {{primary_outcome_noun}} {{outcome_band_phrase}}. Efficiency fell by {{efficiency_delta_pct}}.|That is scaling ahead of outcome rather than a decline.|Spend bought {{fewer_or_less}} {{primary_outcome_noun}} per {{currency_unit_singular}} than last month.",
+        template: "The shape of the month. Spend rose {{spend_delta_pct}} and {{primary_outcome_noun}} {{outcome_band_phrase}}. Efficiency fell by {{efficiency_delta_pct}}.|That is outcome held on more spend rather than decline on more spend.|Spend bought {{fewer_or_less}} {{primary_outcome_noun}} per {{currency_unit_singular}} than last month.",
         provisional: false,
     },
     {
@@ -210,7 +192,7 @@ export const AUTHORED_WORDING = [
         branch_key: "scaling_without_lift",
         locale: "en-AU",
         model: "lead_generation",
-        template: "Scaled ahead of outcome",
+        template: "Outcome held on more spend",
         provisional: false,
     },
     {
@@ -417,7 +399,7 @@ export const AUTHORED_WORDING = [
         branch_key: "less_at_held_traffic",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. The site produced less on {{sessions_band_phrase}} traffic. Conversion rate fell by {{efficiency_delta_pct}}.|That is a fall not driven by a matching traffic cut, so whatever caused it is still in place.",
+        template: "The shape of the month. The site produced less on {{sessions_band_phrase}} traffic. Conversion rate fell by {{efficiency_delta_pct}}.|That is less at held traffic rather than a pullback, and it is the more concerning of the two.|The drop is not explained by a material traffic change, so whatever caused it is still in place.",
         provisional: false,
     },
     {
@@ -435,7 +417,7 @@ export const AUTHORED_WORDING = [
         branch_key: "stable",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. Sessions {{sessions_band_phrase_verb}}; {{primary_outcome_noun}} {{outcome_band_phrase}}.",
+        template: "The shape of the month. Sessions and {{primary_outcome_noun}} both held. That is a stable month.",
         provisional: false,
     },
     {
@@ -453,7 +435,7 @@ export const AUTHORED_WORDING = [
         branch_key: "more_at_held_traffic",
         locale: "en-AU",
         model: "lead_generation",
-        template: "The shape of the month. The site produced more on {{sessions_band_phrase}} traffic.|That is an efficiency improvement rather than traffic growth, and it is the more durable of the two.|The improvement holds at the current traffic level.",
+        template: "The shape of the month. The site produced more on {{sessions_band_phrase}} traffic.|That is more at held traffic rather than growth, and it is the more durable of the two.|The improvement holds at the current traffic level.",
         provisional: false,
     },
     {
@@ -660,7 +642,7 @@ export const AUTHORED_WORDING = [
         branch_key: "bought_and_launched",
         locale: "en-AU",
         model: "lead_generation",
-        template: "What drove it. {{dominant_driver_phrase}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is bought and launched.|Growth on this pattern continues only while the spend does.",
+        template: "What drove it. {{dominant_driver_phrase_capitalised}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is bought and launched.|Growth on this pattern continues only while the spend does.",
         provisional: true,
     },
     {
@@ -669,7 +651,7 @@ export const AUTHORED_WORDING = [
         branch_key: "earned_growth",
         locale: "en-AU",
         model: "lead_generation",
-        template: "What drove it. {{dominant_driver_phrase}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is earned growth.|The improvement does not depend on spending more.",
+        template: "What drove it. {{dominant_driver_phrase_capitalised}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is earned growth.|The improvement does not depend on spending more.",
         provisional: true,
     },
     {
@@ -678,7 +660,7 @@ export const AUTHORED_WORDING = [
         branch_key: "default",
         locale: "en-AU",
         model: "lead_generation",
-        template: "What drove it. {{dominant_driver_phrase}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is the shape of the month's growth.|Watch this driver as the main lever.",
+        template: "What drove it. {{dominant_driver_phrase_capitalised}} was the dominant driver of the {{total_delta_magnitude}} {{delta_word}} {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is the shape of the month's {{outcome_shape_word}}.|Watch this driver as the main lever.",
         provisional: true,
     },
     {
@@ -687,7 +669,7 @@ export const AUTHORED_WORDING = [
         branch_key: "traffic_driven",
         locale: "en-AU",
         model: "lead_generation",
-        template: "What drove it. {{dominant_driver_phrase}} were the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is traffic-driven.|The growth is on the traffic axis alone; a change in per-visit conversion would change the pattern.",
+        template: "What drove it. {{dominant_driver_phrase_capitalised}} were the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is traffic-driven.|The growth is on the traffic axis alone; a change in per-visit conversion would change the pattern.",
         provisional: true,
     },
     {
@@ -696,7 +678,7 @@ export const AUTHORED_WORDING = [
         branch_key: "earned_growth",
         locale: "en-AU",
         model: "lead_generation",
-        template: "What drove it. {{dominant_driver_phrase}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is earned growth.|The improvement does not depend on more sessions.",
+        template: "What drove it. {{dominant_driver_phrase_capitalised}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is earned growth.|The improvement does not depend on more sessions.",
         provisional: true,
     },
     {
@@ -705,7 +687,7 @@ export const AUTHORED_WORDING = [
         branch_key: "default",
         locale: "en-AU",
         model: "lead_generation",
-        template: "What drove it. {{dominant_driver_phrase}} was the dominant driver of the {{total_delta_magnitude}} additional {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is the shape of the month's growth.|Watch this driver as the main lever.",
+        template: "What drove it. {{dominant_driver_phrase_capitalised}} was the dominant driver of the {{total_delta_magnitude}} {{delta_word}} {{outcome_noun_countable}}, contributing {{dominant_contribution_magnitude}}{{secondary_clause}}{{counteracting_clause}}.{{lifecycle_clause}}|That is the shape of the month's {{outcome_shape_word}}.|Watch this driver as the main lever.",
         provisional: true,
     },
     {
