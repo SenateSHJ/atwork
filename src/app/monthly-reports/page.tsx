@@ -313,10 +313,20 @@ function FlagBand({ flags }: { flags: FlagRow[] }) {
 
 // Paragraphs render as prose paragraphs. Category label appears as a small
 // prefix so a reader can see which slot (anchor/composition/attribution/…)
-// each paragraph came from without reading a full stylesheet. Flags that
-// name a paragraph's slot via paired_signals show a small badge — light-
-// weight cross-reference since the SectionReport.paragraphs type doesn't
-// carry rule ids for exact linking.
+// each paragraph came from without reading a full stylesheet.
+//
+// KNOWN IMPRECISION — paragraph-to-flag badge is SLOT-LEVEL, not rule-level.
+// PRISM's SectionReport.paragraphs type carries { category, slot, text }
+// but NOT rule_id, so the badge cross-reference below is a substring match
+// between the slot name and each flag's paired_signals (rule ids). This
+// over-marks when two rules share a slot: Meta's ATTRIBUTION slot already
+// carries two paragraphs (describeOutcomeDecomposition and
+// describeSpendDecomposition), so a flag that paired only with
+// describeOutcomeDecomposition would place the "⚠ see caveat" badge on the
+// describeSpendDecomposition paragraph too. Accepted tradeoff for now.
+// The right fix is upstream: add rule_id (or an emitting_rules string[]) to
+// the Paragraph type so the badge match can be exact. Do NOT invent a
+// synthetic id here — the current badge is honest about being slot-level.
 function ParagraphList({ paragraphs, flags }: { paragraphs: ParagraphItem[]; flags: FlagRow[] }) {
   const slotHasFlag = (slot: string) => flags.some(f => f.pairedSignals.some(s => s.toLowerCase().includes(slot)));
   return (

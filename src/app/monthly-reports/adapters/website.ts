@@ -15,7 +15,14 @@ import type { DailyPoint, NormalisedPeriod, Entity } from '@prism/executive-summ
 import { atworkMonthLabel, monthBounds } from './config';
 import { computePeriodStats } from './helpers';
 
-const CHANNEL = { id: 'website', display: 'Website' };
+// channel.id MUST match reporting.config_channel.channel_id ('web' in
+// atWork's seed) so PRISM's wording resolver can look up channel-scoped
+// config (outcome_model, locale, currency) and so describeAnchorWeb's
+// isWebChannel() gate (accepts 'web', 'web-*', 'ga4*') fires. Prior
+// value 'website' broke both: the resolver reported "channel config not
+// found for website" and the anchor slot never rendered — the web
+// section opened at composition instead. Display name stays "Website".
+const CHANNEL = { id: 'web', display: 'Website' };
 const CONVERSION_DEFINITION =
   'GA4 lead events aggregated across the whitelist: tel_click, form_submit, Contact_Form, events_mail, general_enquiries_mail.';
 
@@ -108,11 +115,21 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
       refund_value:             null,
       new_customer_conversions: null,
       new_customer_value:       null,
+      // PRISM's web-anchor rules (describeAnchorWeb, describeAnchorDeltasWeb,
+      // describePagesPerSession, describeGrowthCompositionWeb) read from
+      // metrics.custom using the field names 'sessions', 'users',
+      // 'lead_events', 'conversion_rate_pct', 'page_views'. atWork's adapter
+      // also carries 'total_users' / 'engagement_rate' / etc for its own
+      // dashboard pages. Both sets ship so PRISM's precondition passes and
+      // atWork's downstream renderers stay unchanged.
       custom: {
         sessions:                 summary.sessions,
+        users:                    summary.total_users,          // PRISM alias
         total_users:              summary.total_users,
         new_users:                summary.new_users,
         page_views:               summary.page_views,
+        lead_events:              totalLeads,                   // PRISM alias
+        conversion_rate_pct:      conv.conversion_rate,         // PRISM alias
         engaged_sessions:         summary.engaged_sessions,
         engagement_rate:          summary.engagement_rate,
         bounce_rate:              bounceRate,
