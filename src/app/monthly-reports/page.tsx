@@ -23,7 +23,17 @@ export default function MonthlyReportsPage() {
     (async () => {
       const [def, opts] = await Promise.all([getDefaultMonth(), getAvailableMonths()]);
       setAvailableMonths(opts);
-      setMonth(def);
+      // Allow ?month=YYYY-MM to override the default (last complete month).
+      // Useful for shareable links to a specific report and for headless
+      // dumps of a chosen month without programmatic dropdown interaction.
+      const urlMonth = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('month')
+        : null;
+      // Well-formedness check on the URL param; dropdown-membership check
+      // deliberately NOT applied so the caller can request the current
+      // (in-progress) month, which is absent from getAvailableMonths().
+      const initial = urlMonth && /^\d{4}-\d{2}$/.test(urlMonth) ? urlMonth : def;
+      setMonth(initial);
     })();
   }, []);
 
