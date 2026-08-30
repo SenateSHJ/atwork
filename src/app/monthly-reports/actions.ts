@@ -142,7 +142,13 @@ export async function getDefaultMonth(): Promise<string> {
 export async function getAvailableMonths(): Promise<string[]> {
   const now = new Date();
   const out: string[] = [];
-  for (let i = 1; i <= 18; i++) {
+  // Include the current (in-progress) month. Prior version started at
+  // i=1 (last complete month) which meant the dropdown didn't list the
+  // current month even when the URL param ?month= selected it —
+  // "Monthly Report — August 2026" title over "Month: July 2026"
+  // dropdown label was the visible symptom. i=0 fixes the mismatch and
+  // is consistent with the URL param loosening from d7e1166.
+  for (let i = 0; i <= 18; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
