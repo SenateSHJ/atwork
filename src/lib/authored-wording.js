@@ -696,7 +696,16 @@ export const AUTHORED_WORDING = [
         branch_key: "_default",
         locale: "en-AU",
         model: "any",
-        template: "Campaign performance. {{best_performer_clause}}{{took_most_of_increase_clause}}{{new_entrant_clause}}{{stopped_clause}}",
+        template: "Campaign performance.{{best_performer_clause}}{{took_most_of_increase_clause}}{{took_most_of_decrease_clause}}{{new_entrant_clause}}{{stopped_clause}}",
+        provisional: true,
+    },
+    {
+        key_type: "finding_signal",
+        rule_id: "describeAnchorDirectionalCoherence",
+        branch_key: "_default",
+        locale: "en-AU",
+        model: "any",
+        template: "Continuing campaigns' spend {{continuing_agg_direction}} {{continuing_agg_delta_pct_abs}} while the account {{account_spend_direction_rose_fell}} {{account_spend_delta_pct_abs}}.",
         provisional: true,
     },
     {
