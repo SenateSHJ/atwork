@@ -85,22 +85,42 @@ const ATWORK_RULES = [
 ];
 
 export type SectionStateKind = 'normal' | 'partial' | 'suppressed';
+export type Direction        = 'up' | 'down' | 'flat' | 'neutral';
+export type ParagraphCategory = string;   // A/B/C/D/E/F/G/H/J/K per PRISM's Category union
 
 export interface SectionSuppressionReason {
   sourceRuleId: string;
-  category:     string;   // SuppressionCategory string literal from PRISM
+  category:     string;
   note:         string;
 }
 
+export interface ChipTile          { label: string; materiality: number; direction: Direction; }
+export interface ScorecardTile     { metricId: string; label: string; value: string; deltaPct: number | null; deltaDir: Direction; }
+export interface TrendPoint        { periodId: string; label: string; value: number | null; }
+export interface DriverRow         { driver: string; contribution: number; direction: Direction; entityName?: string; lifecycle?: 'continuing' | 'new' | 'stopped'; role?: string; shareOfAbsolute?: number; }
+export interface ParagraphItem     { category: ParagraphCategory; slot: string; text: string; }
+export interface RecommendationRow { signal: string; actionTitle: string; rationale: string; }
+export interface FlagRow           { situation: string; question: string; pairedSignals: string[]; }
+export interface EvidenceTopEntity { entityId: string; name: string; spend: number | null; conversions: number | null; cpa: number | null; }
+export interface EvidenceSummary   { topEntities: EvidenceTopEntity[]; dailyPoints: number; references: Record<string, number>; }
+
 export interface SectionReport {
-  paragraphs:    string[];
-  basisSubtitle: string;
+  basisSubtitle:   string;
+  verdict:         string | null;
+  chips:           ChipTile[];
+  scorecard:       ScorecardTile[];
+  trends:          { volume: TrendPoint[]; outcome: TrendPoint[] };
+  decomposition:   DriverRow[];
+  paragraphs:      ParagraphItem[];
+  recommendations: RecommendationRow[];
+  flags:           FlagRow[];
+  evidence:        EvidenceSummary;
   /**
    * Section state per PRISM's ADR 0043. Page reads state.kind to switch
    * between full render, partial-suppression banner, and minimal shell.
    * state.reasons is empty when kind === 'normal'.
    */
-  state:         { kind: SectionStateKind; reasons: SectionSuppressionReason[] };
+  state:           { kind: SectionStateKind; reasons: SectionSuppressionReason[] };
 }
 
 export interface MonthlyReport {
@@ -165,6 +185,22 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
   };
 }
 
+function emptySection(basis: string): SectionReport {
+  return {
+    basisSubtitle:   basis,
+    verdict:         null,
+    chips:           [],
+    scorecard:       [],
+    trends:          { volume: [], outcome: [] },
+    decomposition:   [],
+    paragraphs:      [],
+    recommendations: [],
+    flags:           [],
+    evidence:        { topEntities: [], dailyPoints: 0, references: {} },
+    state:           { kind: 'normal', reasons: [] },
+  };
+}
+
 function composeSection(
   current: NormalisedPeriod | null,
   prior:   NormalisedPeriod | null,
@@ -174,9 +210,8 @@ function composeSection(
 ): SectionReport {
   if (!current) {
     return {
-      paragraphs:    [`No ${label} data available for the selected month.`],
-      basisSubtitle: '',
-      state:         { kind: 'normal', reasons: [] },
+      ...emptySection(''),
+      paragraphs: [{ category: 'A', slot: 'anchor', text: `No ${label} data available for the selected month.` }],
     };
   }
   const stats = computeComparisonStats(
@@ -192,8 +227,55 @@ function composeSection(
   });
   const sr = output.section_report;
   return {
-    paragraphs:    sr.paragraphs.map(p => p.text),
     basisSubtitle: sr.basis_subtitle,
+    verdict:       sr.verdict,
+    chips: sr.chips.map(c => ({
+      label:       c.label,
+      materiality: c.materiality,
+      direction:   c.direction as Direction,
+    })),
+    scorecard: sr.scorecard.map(t => ({
+      metricId: t.metric_id,
+      label:    t.label,
+      value:    t.value,
+      deltaPct: t.delta_pct,
+      deltaDir: t.delta_dir as Direction,
+    })),
+    trends: {
+      volume:  sr.trends.volume.map(p => ({ periodId: p.period_id, label: p.label, value: p.value })),
+      outcome: sr.trends.outcome.map(p => ({ periodId: p.period_id, label: p.label, value: p.value })),
+    },
+    decomposition: sr.decomposition.map(d => ({
+      driver:          d.driver,
+      contribution:    d.contribution,
+      direction:       d.direction as Direction,
+      entityName:      d.entity_name,
+      lifecycle:       d.lifecycle,
+      role:            d.role,
+      shareOfAbsolute: d.share_of_absolute,
+    })),
+    paragraphs: sr.paragraphs.map(p => ({ category: p.category, slot: p.slot, text: p.text })),
+    recommendations: sr.recommendations.map(r => ({
+      signal:      r.signal,
+      actionTitle: r.action_title,
+      rationale:   r.rationale,
+    })),
+    flags: sr.flags.map(f => ({
+      situation:     f.situation,
+      question:      f.question,
+      pairedSignals: f.paired_signals,
+    })),
+    evidence: {
+      topEntities: sr.evidence.top_entities.slice(0, 5).map(e => ({
+        entityId:    e.entity_id,
+        name:        e.name,
+        spend:       e.metrics.spend       ?? null,
+        conversions: e.metrics.conversions ?? null,
+        cpa:         e.metrics.cpa         ?? null,
+      })),
+      dailyPoints: sr.evidence.daily.length,
+      references:  sr.evidence.references,
+    },
     state: {
       kind:    sr.state.kind,
       reasons: sr.state.reasons.map(r => ({
