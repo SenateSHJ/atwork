@@ -13,6 +13,8 @@
     "ingest:linkedin": "node --env-file=.env.local scripts/bronze-linkedin.mjs",
     "ingest:all": "npm run ingest:meta && npm run ingest:gads && npm run ingest:ga4 && npm run ingest:linkedin",
     "preflight": "node scripts/preflight.mjs",
+    "seed:config": "node --env-file=.env.local --import tsx scripts/seed-atwork.ts",
+    "audit:config-drift": "node --env-file=.env.local --import tsx scripts/audit-config-drift.ts",
     "test": "vitest run"
   },
   "dependencies": {

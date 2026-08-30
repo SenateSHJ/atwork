@@ -98,7 +98,7 @@ export interface ChipTile          { label: string; materiality: number; directi
 export interface ScorecardTile     { metricId: string; label: string; value: string; deltaPct: number | null; deltaDir: Direction; }
 export interface TrendPoint        { periodId: string; label: string; value: number | null; }
 export interface DriverRow         { driver: string; contribution: number; direction: Direction; entityName?: string; lifecycle?: 'continuing' | 'new' | 'stopped'; role?: string; shareOfAbsolute?: number; }
-export interface ParagraphItem     { category: ParagraphCategory; slot: string; text: string; }
+export interface ParagraphItem     { category: ParagraphCategory; slot: string; text: string; emittingRules: string[]; }
 export interface RecommendationRow { signal: string; actionTitle: string; rationale: string; }
 export interface FlagRow           { situation: string; question: string; pairedSignals: string[]; }
 export interface EvidenceTopEntity { entityId: string; name: string; spend: number | null; conversions: number | null; cpa: number | null; }
@@ -220,7 +220,7 @@ function composeSection(
     const basis = `Reporting on ${atworkMonthLabel(month)} compared to ${atworkMonthLabel(priorMonthId)}.`;
     return {
       ...emptySection(basis),
-      paragraphs: [{ category: 'A', slot: 'anchor', text: `No ${label} data available for the selected month.` }],
+      paragraphs: [{ category: 'A', slot: 'anchor', text: `No ${label} data available for the selected month.`, emittingRules: [] }],
     };
   }
   const stats = computeComparisonStats(
@@ -263,7 +263,7 @@ function composeSection(
       role:            d.role,
       shareOfAbsolute: d.share_of_absolute,
     })),
-    paragraphs: sr.paragraphs.map(p => ({ category: p.category, slot: p.slot, text: p.text })),
+    paragraphs: sr.paragraphs.map(p => ({ category: p.category, slot: p.slot, text: p.text, emittingRules: p.emitting_rules })),
     recommendations: sr.recommendations.map(r => ({
       signal:      r.signal,
       actionTitle: r.action_title,
