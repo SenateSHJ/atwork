@@ -120,7 +120,7 @@ const CHANNEL_WEB: ChannelConfig = {
   channel_display:              'Website',
   currency:                     'AUD',
   locale:                       'en-AU',
-  conversion_definition:        'GA4 lead events (enquire_*, DES_client_register_form, DES_email, des_employer_enquiry, GA4_phone_clicks, chat starts, landing_page_register), counted once per session per GA4 channel attribution',
+  conversion_definition:        'GA4 conversions across all channel groups, counted once per session per GA4 channel attribution',
   display_order:                3,
   enabled:                      true,
   channel_family:               'web',
