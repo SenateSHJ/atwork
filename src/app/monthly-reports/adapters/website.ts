@@ -1,25 +1,33 @@
 // atWork Website (GA4) adapter. Fetches one month of GA4 metrics and top
 // channels, and normalises into the reporting-library contract.
 //
-// Website has no paid concepts — spend, CPC etc. are left null. GA4 lead
-// events (form_submit, tel_click, etc.) are mapped onto the shared
-// `conversions` slot so the conversion-family rules fire on them. Bounce +
-// engagement rates are exposed under metrics.custom for the engagement-
-// quality rule.
+// Website has no paid concepts — spend, CPC etc. are left null. The
+// section unifies on ga4_channels.conversions (GA4's native conversion
+// counter) across account totals, per-channel entity totals, and the
+// derived conversion rate. Per Scott 2026-08-30, one definition of
+// "conversion" per section is worth more than a broader whitelist
+// number that cannot be attributed per-channel without a silver rebuild
+// AND that made "events / sessions" render as a "conversion rate" —
+// literally counting events, not sessions with a conversion.
+//
+// The previous adapter carried three sources for what was labelled
+// "conversion" or "conversion rate":
+//   1. getGa4LeadEvents (LEAD_EVENTS whitelist over ga4_events.event_count)
+//      → account metrics.conversions = 15,764 on July 2026
+//   2. getGa4Conversions (ga4_channels.conversions / ga4_channels.sessions)
+//      → account custom.conversion_rate_pct = 3.42%
+//   3. getGa4Channels.conversions per channel
+//      → entity metrics.conversions summing to 1,595 total
+// The three disagreed by roughly 10x on totals and gave different
+// deltas (whitelist −837 vs channels-conversion −117), so C2's
+// attribution paragraph decomposed a different quantity than the
+// anchor displayed and the reader could not verify one against the
+// other. Both getGa4Conversions and getGa4LeadEvents are now off the
+// report path. Both remain used by the /ga4 standalone dashboard page
+// which reads them directly; that path is unaffected.
 
-// getGa4Conversions is intentionally NOT imported here. It reads
-// ga4_channels.conversions (GA4's native counter, a subset of the
-// LEAD_EVENTS whitelist) and computes a CR from ga4_channels.sessions.
-// atWork's report path defines "lead events" as the whitelist total
-// (getGa4LeadEvents), so having a second CR from a different numerator
-// and denominator meant anchor and classifier reasoned on different
-// numbers for the same "conversion rate" label. Dropped from the
-// report path per Scott 2026-08-30; the /ga4 dashboard page (which
-// uses ga4_channels-derived CR by design) still calls getGa4Conversions
-// directly and is unaffected.
 import {
-  getGa4Summary, getGa4LeadEvents, getGa4Trend,
-  getGa4Channels,
+  getGa4Summary, getGa4Trend, getGa4Channels,
 } from '@/lib/queries/ga4';
 import type { DailyPoint, NormalisedPeriod, Entity } from '@prism/executive-summaries';
 import { atworkMonthLabel, monthBounds } from './config';
@@ -34,13 +42,12 @@ import { computePeriodStats } from './helpers';
 // section opened at composition instead. Display name stays "Website".
 const CHANNEL = { id: 'web', display: 'Website' };
 const CONVERSION_DEFINITION =
-  'GA4 lead events aggregated across the whitelist: tel_click, form_submit, Contact_Form, events_mail, general_enquiries_mail.';
+  "GA4 conversions across all channel groups, counted once per session per GA4 channel attribution.";
 
 export async function fetchAtWorkWebsitePeriod(month: string): Promise<NormalisedPeriod | null> {
   const range = monthBounds(month);
-  const [summary, leads, trend, channels] = await Promise.all([
+  const [summary, trend, channels] = await Promise.all([
     getGa4Summary(range),
-    getGa4LeadEvents(range),
     getGa4Trend(range),
     getGa4Channels(range),
   ]);
@@ -56,24 +63,26 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
     }
   }
   const bounceRate = bounceSessions > 0 ? bounceWeighted / bounceSessions : null;
-  const totalLeads = leads.reduce((s, l) => s + l.total, 0);
 
-  // One definition of conversion rate per section, per Scott 2026-08-30:
-  // whatever PRISM classifies on is what the anchor displays. Both
-  // metrics.conversions and metrics.custom.lead_events feed totalLeads
-  // (the LEAD_EVENTS whitelist sum from getGa4LeadEvents), so
-  // conversion_rate and conversion_rate_pct must derive from the same
-  // numerator over the same denominator (summary.sessions from
-  // ga4_overview, which is what custom.sessions feeds). Anchor's CR
-  // display, B2's classifier CR, and C2's per-entity decomposition all
-  // reason on the same lead_events / sessions arithmetic.
-  const conversionRatePct = summary.sessions > 0 ? (totalLeads / summary.sessions) * 100 : null;
+  // Account total conversions = sum of per-channel conversions. Same
+  // arithmetic and same source (ga4_channels.conversions) as the entity
+  // list below, so the C2 attribution paragraph decomposes the exact
+  // number the anchor displays. Sessions denominator is
+  // ga4_overview.sessions rather than sum-of-ga4_channels.sessions
+  // because that is what feeds custom.sessions (which PRISM's
+  // describeAnchorWeb reads); the two are close but not identical, and
+  // matching custom.sessions keeps the CR the classifier reasons on
+  // equal to the CR the anchor renders.
+  const totalConversions  = channels.reduce((s, ch) => s + ch.conversions, 0);
+  const conversionRatePct = summary.sessions > 0 ? (totalConversions / summary.sessions) * 100 : null;
 
-  // Daily series from the existing getGa4Trend query.
+  // Daily series uses ch_conversions (source-C conversions) so the
+  // history feeding PRISM's F-family trend rules is on the same axis
+  // as the account totals above.
   const daily: DailyPoint[] = trend.map(d => ({
     date:    d.date,
     metrics: {
-      conversions: d.lead_events ?? 0,
+      conversions: d.conversions ?? 0,
       custom: {
         sessions:    d.sessions,
         total_users: d.total_users,
@@ -125,7 +134,7 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
       spend:                    null,
       impressions:              null,
       clicks:                   null,
-      conversions:              totalLeads,
+      conversions:              totalConversions,
       ctr:                      null,
       cpc:                      null,
       cpm:                      null,
@@ -141,15 +150,19 @@ export async function fetchAtWorkWebsitePeriod(month: string): Promise<Normalise
       // 'lead_events', 'conversion_rate_pct', 'page_views'. atWork's adapter
       // also carries 'total_users' / 'engagement_rate' / etc for its own
       // dashboard pages. Both sets ship so PRISM's precondition passes and
-      // atWork's downstream renderers stay unchanged.
+      // atWork's downstream renderers stay unchanged. The 'lead_events'
+      // alias now carries totalConversions (source C) matching account
+      // metrics.conversions above; the underlying number is GA4-native
+      // conversions, PRISM's outcome-noun rendering ("lead events") is a
+      // wording convention rather than a claim about the count's source.
       custom: {
         sessions:                 summary.sessions,
         users:                    summary.total_users,          // PRISM alias
         total_users:              summary.total_users,
         new_users:                summary.new_users,
         page_views:               summary.page_views,
-        lead_events:              totalLeads,                   // PRISM alias
-        conversion_rate_pct:      conversionRatePct,            // PRISM alias — same numerator/denominator as metrics.conversion_rate above
+        lead_events:              totalConversions,             // PRISM alias — same source as account metrics.conversions
+        conversion_rate_pct:      conversionRatePct,            // PRISM alias — same numerator/denominator as metrics.conversion_rate
         engaged_sessions:         summary.engaged_sessions,
         engagement_rate:          summary.engagement_rate,
         bounce_rate:              bounceRate,
