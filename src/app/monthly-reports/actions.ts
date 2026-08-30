@@ -82,9 +82,23 @@ const ATWORK_RULES = [
   flagAttributionWindowSuspectedDrift,
 ];
 
+export type SectionStateKind = 'normal' | 'partial' | 'suppressed';
+
+export interface SectionSuppressionReason {
+  sourceRuleId: string;
+  category:     string;   // SuppressionCategory string literal from PRISM
+  note:         string;
+}
+
 export interface SectionReport {
   paragraphs:    string[];
   basisSubtitle: string;
+  /**
+   * Section state per PRISM's ADR 0043. Page reads state.kind to switch
+   * between full render, partial-suppression banner, and minimal shell.
+   * state.reasons is empty when kind === 'normal'.
+   */
+  state:         { kind: SectionStateKind; reasons: SectionSuppressionReason[] };
 }
 
 export interface MonthlyReport {
@@ -160,6 +174,7 @@ function composeSection(
     return {
       paragraphs:    [`No ${label} data available for the selected month.`],
       basisSubtitle: '',
+      state:         { kind: 'normal', reasons: [] },
     };
   }
   const stats = computeComparisonStats(
@@ -173,8 +188,17 @@ function composeSection(
     derived:    DERIVED_RULES,
     section:    label,
   });
+  const sr = output.section_report;
   return {
-    paragraphs:    output.section_report.paragraphs.map(p => p.text),
-    basisSubtitle: output.section_report.basis_subtitle,
+    paragraphs:    sr.paragraphs.map(p => p.text),
+    basisSubtitle: sr.basis_subtitle,
+    state: {
+      kind:    sr.state.kind,
+      reasons: sr.state.reasons.map(r => ({
+        sourceRuleId: r.source_rule_id,
+        category:     r.category,
+        note:         r.note,
+      })),
+    },
   };
 }

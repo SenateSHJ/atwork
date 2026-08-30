@@ -118,11 +118,45 @@ function ReportSection({ title, section, loading }: { title: string; section: Se
               {section.basisSubtitle}
             </p>
           )}
+          {section.state.kind !== 'normal' && (
+            <SuppressionBanner state={section.state} />
+          )}
           {section.paragraphs.map((p, i) => (
             <p key={i} style={{ margin: `0 0 ${spacing.md}`, textAlign: 'justify' }}>{p}</p>
           ))}
         </div>
       )}
     </ChartContainer>
+  );
+}
+
+function SuppressionBanner({ state }: { state: SectionReport['state'] }) {
+  // ADR 0043 (PRISM): 'partial' = at least one suppression K-rule fired
+  // but a non-anchor narrative paragraph survived; 'suppressed' = only
+  // the anchor survived (or fewer) and the reader should treat the
+  // section as a minimal shell. We surface both with the same visual
+  // treatment differing only by copy.
+  const headline = state.kind === 'suppressed'
+    ? 'This section has been suppressed for the selected month.'
+    : 'Part of this section has been suppressed for the selected month.';
+  return (
+    <div style={{
+      margin: `0 0 ${spacing.md}`,
+      padding: `${spacing.sm} ${spacing.md}`,
+      background: colors.brand.secondaryFaint,
+      border: `1px solid ${colors.border.default}`,
+      borderRadius: 0,
+      fontSize: typography.fontSize.sm,
+      color: colors.text.primary,
+    }}>
+      <p style={{ margin: 0, fontWeight: typography.fontWeight.semibold }}>{headline}</p>
+      {state.reasons.length > 0 && (
+        <ul style={{ margin: `${spacing.xs} 0 0`, paddingLeft: spacing.md, color: colors.text.secondary }}>
+          {state.reasons.map((r, i) => (
+            <li key={i} style={{ margin: 0 }}>{r.note}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
