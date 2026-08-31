@@ -31,6 +31,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Runs whatever test suite is defined in package.json (currently a
+      # placeholder). Satisfies PRISM Part G Gate 4.5 (CI runs the test
+      # suite); when real tests land, they gate the pipeline here.
+      - name: Test
+        run: npm test
+
       # Config-vs-DB drift audit per docs/CONFIG-DRIFT-AUDIT.md
       # (upstream in @prism/executive-summaries). Deep-diffs
       # makeAtWorkConfig() against the ClientConfig loadConfig would

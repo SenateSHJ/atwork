@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, YAxis, Tooltip as RTooltip } from 'recharts';
-import { colors, typography, spacing, shadow } from '@/tokens';
+import { colors, typography, spacing, shadow, controls, borderRadius, borderWidth, gridMin, cellPadding } from '@/tokens';
 import { ChartContainer } from '@/components/ChartContainer';
 import {
   fetchMonthlyReport, getDefaultMonth, getAvailableMonths,
@@ -81,10 +81,10 @@ export default function MonthlyReportsPage() {
           onChange={e => setMonth(e.target.value)}
           disabled={loading}
           style={{
-            height: '36.5px',
-            padding: '0 12px',
-            border: `1px solid ${colors.border.default}`,
-            borderRadius: 0,
+            height: controls.selectHeight,
+            padding: `0 ${controls.selectPaddingX}`,
+            border: `${spacing.px} solid ${colors.border.default}`,
+            borderRadius: borderRadius.none,
             fontSize: typography.fontSize.sm,
             backgroundColor: colors.background.card,
             color: colors.text.primary,
@@ -238,7 +238,7 @@ function ChipRow({ chips }: { chips: ChipTile[] }) {
           gap: spacing.xs,
           padding: `${spacing.xs} ${spacing.sm}`,
           background: colors.brand.secondaryFaint,
-          border: `1px solid ${colors.border.default}`,
+          border: `${borderWidth.thin} solid ${colors.border.default}`,
           fontSize: typography.fontSize.xs,
           color: colors.text.primary,
         }}>
@@ -255,13 +255,13 @@ function ScorecardGrid({ tiles }: { tiles: ScorecardTile[] }) {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+      gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin.card}, 1fr))`,
       gap: spacing.sm,
     }}>
       {tiles.map((t, i) => (
         <div key={i} style={{
           padding: spacing.sm,
-          border: `1px solid ${colors.border.default}`,
+          border: `${borderWidth.thin} solid ${colors.border.default}`,
           background: colors.background.card,
           boxShadow: shadow.sm,
         }}>
@@ -286,7 +286,7 @@ function ScorecardGrid({ tiles }: { tiles: ScorecardTile[] }) {
 function FlagBand({ flags }: { flags: FlagRow[] }) {
   return (
     <div style={{
-      border: `2px solid ${colors.status.warning}`,
+      border: `${borderWidth.medium} solid ${colors.status.warning}`,
       background: colors.status.warningFaint,
       padding: spacing.sm,
     }}>
@@ -302,7 +302,7 @@ function FlagBand({ flags }: { flags: FlagRow[] }) {
         {flags.map((f, i) => (
           <li key={i} style={{
             paddingLeft: spacing.sm,
-            borderLeft: `3px solid ${colors.status.warning}`,
+            borderLeft: `${borderWidth.thick} solid ${colors.status.warning}`,
           }}>
             <p style={{ margin: 0, fontSize: typography.fontSize.sm, color: colors.text.primary }}>{f.situation}</p>
             {f.question && (
@@ -379,7 +379,7 @@ function RecommendationList({ recs }: { recs: RecommendationRow[] }) {
       {recs.map((r, i) => (
         <div key={i} style={{
           padding: spacing.sm,
-          border: `1px solid ${colors.border.default}`,
+          border: `${borderWidth.thin} solid ${colors.border.default}`,
           background: colors.background.card,
           boxShadow: shadow.sm,
         }}>
@@ -409,7 +409,7 @@ function MiniTrend({ title, points }: { title: string; points: TrendPoint[] }) {
   return (
     <div style={{
       padding: spacing.sm,
-      border: `1px solid ${colors.border.default}`,
+      border: `${borderWidth.thin} solid ${colors.border.default}`,
       background: colors.background.card,
       boxShadow: shadow.sm,
     }}>
@@ -469,7 +469,7 @@ function EvidenceDisclosure({ evidence }: { evidence: EvidenceSummary }) {
   if (!anyContent) return null;
   return (
     <details style={{
-      border: `1px solid ${colors.border.default}`,
+      border: `${borderWidth.thin} solid ${colors.border.default}`,
       background: colors.background.card,
       borderRadius: 0,
       padding: `${spacing.xs} ${spacing.sm}`,
@@ -488,20 +488,20 @@ function EvidenceDisclosure({ evidence }: { evidence: EvidenceSummary }) {
             <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, marginBottom: 4 }}>Top entities</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: typography.fontSize.xs }}>
               <thead>
-                <tr style={{ borderBottom: `1px solid ${colors.border.default}` }}>
-                  <th style={{ textAlign: 'left', padding: '4px 6px' }}>Name</th>
-                  <th style={{ textAlign: 'right', padding: '4px 6px' }}>Spend</th>
-                  <th style={{ textAlign: 'right', padding: '4px 6px' }}>Conv</th>
-                  <th style={{ textAlign: 'right', padding: '4px 6px' }}>CPA</th>
+                <tr style={{ borderBottom: `${borderWidth.thin} solid ${colors.border.default}` }}>
+                  <th style={{ textAlign: 'left', padding: cellPadding.compact }}>Name</th>
+                  <th style={{ textAlign: 'right', padding: cellPadding.compact }}>Spend</th>
+                  <th style={{ textAlign: 'right', padding: cellPadding.compact }}>Conv</th>
+                  <th style={{ textAlign: 'right', padding: cellPadding.compact }}>CPA</th>
                 </tr>
               </thead>
               <tbody>
                 {evidence.topEntities.map((e, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${colors.border.default}` }}>
-                    <td style={{ padding: '4px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 400 }}>{e.name}</td>
-                    <td style={{ padding: '4px 6px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{e.spend !== null ? '$' + Math.round(e.spend).toLocaleString() : '—'}</td>
-                    <td style={{ padding: '4px 6px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{e.conversions ?? '—'}</td>
-                    <td style={{ padding: '4px 6px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{e.cpa !== null ? '$' + Math.round(e.cpa).toLocaleString() : '—'}</td>
+                  <tr key={i} style={{ borderBottom: `${borderWidth.thin} solid ${colors.border.default}` }}>
+                    <td style={{ padding: cellPadding.compact, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 400 }}>{e.name}</td>
+                    <td style={{ padding: cellPadding.compact, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{e.spend !== null ? '$' + Math.round(e.spend).toLocaleString() : '—'}</td>
+                    <td style={{ padding: cellPadding.compact, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{e.conversions ?? '—'}</td>
+                    <td style={{ padding: cellPadding.compact, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{e.cpa !== null ? '$' + Math.round(e.cpa).toLocaleString() : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -511,9 +511,9 @@ function EvidenceDisclosure({ evidence }: { evidence: EvidenceSummary }) {
         {Object.keys(evidence.references).length > 0 && (
           <div>
             <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, marginBottom: 4 }}>Numeric references</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 4, fontSize: typography.fontSize.xs, fontVariantNumeric: 'tabular-nums' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin.wideCard}, 1fr))`, gap: 4, fontSize: typography.fontSize.xs, fontVariantNumeric: 'tabular-nums' }}>
               {Object.entries(evidence.references).map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 6px', background: colors.brand.secondaryFaint }}>
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: cellPadding.tight, background: colors.brand.secondaryFaint }}>
                   <span style={{ color: colors.text.secondary }}>{k}</span>
                   <span style={{ color: colors.text.primary }}>{typeof v === 'number' ? v.toLocaleString() : String(v)}</span>
                 </div>
@@ -535,7 +535,7 @@ function SuppressionBanner({ state }: { state: SectionReport['state'] }) {
       margin: 0,
       padding: `${spacing.sm} ${spacing.md}`,
       background: colors.status.warningFaint,
-      border: `2px solid ${colors.status.warning}`,
+      border: `${borderWidth.medium} solid ${colors.status.warning}`,
       fontSize: typography.fontSize.sm,
       color: colors.text.primary,
     }}>

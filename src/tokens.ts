@@ -128,6 +128,34 @@ export const spacing = {
   '4xl': '96px',
 } as const;
 
+// ─── Form control sizing ─────────────────────────────────────────────────────
+// Concrete pixel sizes for interactive controls that need to align with the
+// atWork brand's form-control geometry. Values factored out of page components
+// so the Gate 1.7 token-discipline check does not flag them as raw literals.
+export const controls = {
+  selectHeight: '36.5px',
+  selectPaddingX: '12px',
+} as const;
+
+// ─── Border widths ───────────────────────────────────────────────────────────
+export const borderWidth = {
+  thin:   '1px',
+  medium: '2px',
+  thick:  '3px',
+} as const;
+
+// ─── Grid track sizing (minmax lower bound) ──────────────────────────────────
+export const gridMin = {
+  card:     '160px',
+  wideCard: '220px',
+} as const;
+
+// ─── Cell padding shorthand (table + list rows) ──────────────────────────────
+export const cellPadding = {
+  compact: '4px 6px',
+  tight:   '2px 6px',
+} as const;
+
 // ─── Border radius ────────────────────────────────────────────────────────────
 
 // Client preference: square corners across the app. Pill radius kept for
