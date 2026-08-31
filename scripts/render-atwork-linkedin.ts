@@ -18,7 +18,7 @@ import ws from 'ws';
 
 import { createClient } from '@supabase/supabase-js';
 import { compose, loadConfig, DERIVED_RULES,
-  describeAnchor, describeOutcomeDefinition, describeGrowthComposition,
+  describeAnchor, describeOutcomeDefinition, describeCampaignGoalCompletions, describeGrowthComposition,
   describeGrowthCompositionWeb, describeOutcomeDecomposition,
   describeOutcomeDecompositionWeb, describeSustainedTrend, describeTrendBreak,
   describeStatisticallySignificantRateChange, flagSampleSizeInsufficient,
@@ -36,7 +36,7 @@ import { buildHistory, computeComparisonStats } from '../src/app/monthly-reports
 import { priorMonth } from '../src/app/monthly-reports/adapters/config';
 
 const ALL_RULES = [
-  describeAnchor, describeOutcomeDefinition, describeGrowthComposition,
+  describeAnchor, describeOutcomeDefinition, describeCampaignGoalCompletions, describeGrowthComposition,
   describeGrowthCompositionWeb, describeOutcomeDecomposition,
   describeOutcomeDecompositionWeb, describeSustainedTrend, describeTrendBreak,
   describeStatisticallySignificantRateChange, flagSampleSizeInsufficient,

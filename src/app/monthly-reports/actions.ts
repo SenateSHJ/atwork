@@ -28,6 +28,7 @@ import {
   // If PRISM adds a rule, add it to ATWORK_RULES below.
   describeAnchor,
   describeOutcomeDefinition,
+  describeCampaignGoalCompletions,
   describeGrowthComposition,
   describeGrowthCompositionWeb,
   describeOutcomeDecomposition,
@@ -58,6 +59,7 @@ import {
 const ATWORK_RULES = [
   describeAnchor,
   describeOutcomeDefinition,
+  describeCampaignGoalCompletions,
   describeGrowthComposition,
   describeGrowthCompositionWeb,
   describeOutcomeDecomposition,
