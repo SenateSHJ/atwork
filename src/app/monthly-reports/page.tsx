@@ -99,9 +99,10 @@ export default function MonthlyReportsPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
-        <ReportSection title="Meta Ads"   section={report?.meta}    loading={loading} />
-        <ReportSection title="Google Ads" section={report?.gads}    loading={loading} />
-        <ReportSection title="Website"    section={report?.website} loading={loading} />
+        <ReportSection title="Meta Ads"   section={report?.meta}     loading={loading} />
+        <ReportSection title="Google Ads" section={report?.gads}     loading={loading} />
+        <ReportSection title="LinkedIn"   section={report?.linkedin} loading={loading} />
+        <ReportSection title="Website"    section={report?.website}  loading={loading} />
       </div>
     </div>
   );

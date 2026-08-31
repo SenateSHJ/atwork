@@ -6,9 +6,10 @@
 // owns all rule logic; this file owns only the fetch orchestration and the
 // binding of the atWork ClientConfig.
 
-import { fetchAtWorkMetaPeriod }    from './adapters/meta';
-import { fetchAtWorkGadsPeriod }    from './adapters/gads';
-import { fetchAtWorkWebsitePeriod } from './adapters/website';
+import { fetchAtWorkMetaPeriod }     from './adapters/meta';
+import { fetchAtWorkGadsPeriod }     from './adapters/gads';
+import { fetchAtWorkWebsitePeriod }  from './adapters/website';
+import { fetchAtWorkLinkedinPeriod } from './adapters/linkedin';
 import { atworkMonthLabel, priorMonth } from './adapters/config';
 import { loadConfig } from '@prism/executive-summaries';
 import type { ClientConfig } from '@prism/executive-summaries';
@@ -131,6 +132,7 @@ export interface MonthlyReport {
   meta:      SectionReport;
   gads:      SectionReport;
   website:   SectionReport;
+  linkedin:  SectionReport;
 }
 
 export async function getDefaultMonth(): Promise<string> {
@@ -172,12 +174,14 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
     metaCur, metaPri, metaHist,
     gadsCur, gadsPri, gadsHist,
     webCur,  webPri,  webHist,
+    liCur,   liPri,   liHist,
   ] = await Promise.all([
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     loadConfig({ supabase: supabaseServer() as unknown as any, clientSlug: CLIENT_SLUG }),
-    fetchAtWorkMetaPeriod(month),    fetchAtWorkMetaPeriod(prior),    buildHistory(fetchAtWorkMetaPeriod,    month),
-    fetchAtWorkGadsPeriod(month),    fetchAtWorkGadsPeriod(prior),    buildHistory(fetchAtWorkGadsPeriod,    month),
-    fetchAtWorkWebsitePeriod(month), fetchAtWorkWebsitePeriod(prior), buildHistory(fetchAtWorkWebsitePeriod, month),
+    fetchAtWorkMetaPeriod(month),     fetchAtWorkMetaPeriod(prior),     buildHistory(fetchAtWorkMetaPeriod,     month),
+    fetchAtWorkGadsPeriod(month),     fetchAtWorkGadsPeriod(prior),     buildHistory(fetchAtWorkGadsPeriod,     month),
+    fetchAtWorkWebsitePeriod(month),  fetchAtWorkWebsitePeriod(prior),  buildHistory(fetchAtWorkWebsitePeriod,  month),
+    fetchAtWorkLinkedinPeriod(month), fetchAtWorkLinkedinPeriod(prior), buildHistory(fetchAtWorkLinkedinPeriod, month),
   ]);
 
   return {
@@ -185,9 +189,10 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
     monthLabel: atworkMonthLabel(month),
     prior,
     priorLabel: atworkMonthLabel(prior),
-    meta:    composeSection(metaCur, metaPri, metaHist, 'Meta Ads',   config, month, prior),
-    gads:    composeSection(gadsCur, gadsPri, gadsHist, 'Google Ads', config, month, prior),
-    website: composeSection(webCur,  webPri,  webHist,  'Website',    config, month, prior),
+    meta:     composeSection(metaCur, metaPri, metaHist, 'Meta Ads',   config, month, prior),
+    gads:     composeSection(gadsCur, gadsPri, gadsHist, 'Google Ads', config, month, prior),
+    website:  composeSection(webCur,  webPri,  webHist,  'Website',    config, month, prior),
+    linkedin: composeSection(liCur,   liPri,   liHist,   'LinkedIn',   config, month, prior),
   };
 }
 
