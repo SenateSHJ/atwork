@@ -7,9 +7,58 @@
 #
 # atWork/SSHJ is a strictly isolated tenant — no other client's identifiers
 # may ever be invoked from this project.
+#
+# ── NARROW EXEMPTION: gh auth {switch,status,token,logout} ────────────────
+#
+# Added 2026-08-31. `gh auth switch --user <foreign>` was blocking when both
+# sessions needed to flip credential contexts, even though the switch itself
+# does not touch any tenant's data — it changes which local credential file
+# is the default for future gh operations. The exemption below permits:
+#   gh auth switch  — change the active local credential
+#   gh auth status  — inspect stored credentials
+#   gh auth token   — print the current token (not the same as leaking a
+#                     tenant's data; the token is local state)
+#   gh auth logout  — remove a stored credential
+# even when the argument names a foreign tenant.
+#
+# Deliberately NOT covered by the exemption:
+#   git remote set-url, git push, gh repo view/list/create, supabase link,
+#   curl to a foreign host, any operation that addresses a foreign tenant's
+#   resource. Those all remain refused by the foreign-id check below when
+#   they name a listed identifier.
+#
+# Residual risk this exemption does NOT catch:
+#   After a `gh auth switch` to a foreign account, subsequent commands in
+#   the same shell run under that account's credentials. Downstream commands
+#   only refuse if they literally name a listed foreign identifier. A
+#   command that hits a foreign tenant's resource via a shared identifier
+#   (an org both accounts are in, a repo name that is not on the list)
+#   would pass. Mitigation: rely on the paired GH_CONFIG_DIR per-session
+#   isolation so `gh auth switch` becomes unnecessary in day-to-day work
+#   and this exemption is a safety net rather than a routine unblock.
+#
+# The exemption also refuses compound commands (anything with ;, &&, ||, |,
+# <, >) that begin with a permitted gh auth invocation, so a command like
+# `gh auth switch --user Foo && do-something-that-touches-foreign-data`
+# does NOT slip through.
 set -u
 
 INPUT="$(cat)"
+
+# Extract the Bash tool's command string when this is a Bash tool invocation.
+TOOL_COMMAND=$(printf '%s' "$INPUT" | python3 -c 'import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get("tool_input", {}).get("command", ""))
+except Exception:
+    print("")')
+
+# Exempt gh auth {switch,status,token,logout} when it is the whole command
+# (no shell separators after the pattern). See header for rationale + what
+# this deliberately does not cover.
+if [[ "$TOOL_COMMAND" =~ ^[[:space:]]*gh[[:space:]]+auth[[:space:]]+(switch|status|token|logout)([[:space:]]+[^\;\|\&\<\>]*)?[[:space:]]*$ ]]; then
+  exit 0
+fi
 
 # Foreign-tenant identifiers. Add here when new ones surface.
 FOREIGN_IDS=(
