@@ -1,21 +1,38 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { format, parseISO } from 'date-fns';
 import { FallbackBanner, readBannerDismissed, persistBannerDismissed } from '@/components/FallbackBanner';
-import { colors, typography, spacing } from '@/tokens';
+import { colors, typography, spacing, shadow, controls, borderRadius, borderWidth, cellPadding, chart, card, grey, preview } from '@/tokens';
 import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
 import { SearchableMultiSelect } from '@/components/hq/SearchableMultiSelect';
-import { MetricTrendsChart } from '@/components/hq/MetricTrendsChart';
 import { DailySummaryTable, type DSTColumn } from '@/components/hq/DailySummaryTable';
+
+// Recharts is ~90KB gzipped — lazy-load so the initial page bundle stays
+// small and above-fold scorecards paint before the chart lib finishes
+// downloading. Loading placeholder holds the row height so layout doesn't
+// jump when the chart mounts.
+const MetricTrendsChart = dynamic(
+  () => import('@/components/hq/MetricTrendsChart').then(m => ({ default: m.MetricTrendsChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{ height: chart.loadingHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: grey.placeholder, fontSize: typography.fontSize.sm }}>
+        Loading chart…
+      </div>
+    ),
+  },
+);
 import {
-  fetchAboveFold, fetchBelowFold, fetchEntityTables, getFilterOptions,
-  fetchEngagement, fetchVideoWatch, fetchTargeting,
+  fetchAboveFold, fetchEntityTables, getFilterOptions,
+  fetchEngagement, fetchVideoWatch, fetchTargeting, fetchDevices, fetchDayOfWeek,
   type MetaFilters, type MetaFilterOptions,
-  type Totals, type DailyRow, type AgencyRow, type TrendRow,
+  type Totals, type DailyRow, type AgencyRow,
   type EntityRow, type EngagementRow, type VideoWatchResult, type TargetingRow,
+  type DevicesResult, type DayOfWeekRow,
 } from './actions';
 import { META_CONVERSION_DEFINITION } from './constants';
 
@@ -32,8 +49,18 @@ function daysAgo(n: number) {
 }
 
 const fmtCtr   = (v: number | null) => v != null ? `${v.toFixed(2)}%` : '0.00%';
-const fmtMoney = (v: number | null) => v != null ? `$${v.toFixed(2)}` : '$0.00';
+const fmtMoney = (v: number | null) => v != null ? `$${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
 const fmtInt   = (v: number)        => Math.round(v).toLocaleString();
+const fmtFreq  = (v: number | null) => v != null ? v.toFixed(2) : '—';
+
+// Period-over-period % change. Returns null when there's no baseline
+// (prior=0) — the scorecard will render "—" instead of "▲ Infinity%".
+function deltaPct(curr: number | null | undefined, prior: number | null | undefined): number | null {
+  const c = Number(curr ?? 0);
+  const p = Number(prior ?? 0);
+  if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null;
+  return ((c - p) / p) * 100;
+}
 // Table date column format — "21-Jul-2026" for real ISO dates, pass-through
 // for anything else (totals row uses "Total" as the value).
 const fmtDate  = (v: unknown) =>
@@ -44,10 +71,81 @@ const fmtDate  = (v: unknown) =>
 // Column config for the entity tables — entity name + optional Objective /
 // Creative Type + shared metric block (Spend/Impressions/Clicks/Reach, CTR/CPC/CPM,
 // Conversions, Cost per Conversion).
-function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; withObjective?: boolean }): DSTColumn[] {
+function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; withObjective?: boolean; withPreview?: boolean; withAdCopy?: boolean }): DSTColumn[] {
   const cols: DSTColumn[] = [
     { key: 'name', label: nameLabel, align: 'left' },
   ];
+  if (opts?.withPreview) {
+    cols.push({
+      key: 'thumbnail_url',
+      label: 'Preview',
+      align: 'left',
+      render: r => {
+        // Preview URL + kind computed in silver.meta_ads_with_creative via
+        // CASE WHEN so the client render is trivial. Kind is one of
+        // VIDEO / IMAGE / TEXT / OTHER; URL is the best available source.
+        const url  = (r.preview_url  as string | null | undefined) ?? null;
+        const kind = String(r.preview_kind ?? 'IMAGE').toUpperCase();
+        if (!url) {
+          return (
+            <div style={{ width: preview.size, height: preview.size, backgroundColor: grey.bgLight, border: `${borderWidth.thin} solid ${colors.border.default}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, color: colors.text.secondary, fontSize: typography.fontSize.xs, textAlign: 'center' }}>
+              <div style={{ fontSize: 22 }}>◇</div>
+              <div>No preview<br />available</div>
+              <div style={{ opacity: 0.6 }}>{kind}</div>
+            </div>
+          );
+        }
+        return (
+          <div style={{ position: 'relative', width: preview.size, height: preview.size, backgroundColor: grey.bgLight, border: `${borderWidth.thin} solid ${grey.border}` }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt="Ad creative"
+              loading="lazy"
+              style={{ width: '100%', height: '100%', objectFit: 'scale-down', display: 'block' }}
+            />
+            {kind === 'VIDEO' && (
+              <div style={{
+                position: 'absolute', bottom: 6, left: 6,
+                padding: cellPadding.tight,
+                fontSize: typography.fontSize.xs,
+                fontWeight: typography.fontWeight.semibold,
+                color: '#fff',
+                backgroundColor: 'rgba(0,0,0,0.65)',
+                letterSpacing: '0.05em',
+                pointerEvents: 'none',
+              }}>▶ VIDEO</div>
+            )}
+          </div>
+        );
+      },
+    });
+  }
+  if (opts?.withAdCopy) {
+    cols.push({
+      key: 'creative_body',
+      label: 'Ad Copy',
+      align: 'left',
+      render: r => {
+        const title = (r.creative_title as string | null | undefined) ?? '';
+        const body  = (r.creative_body  as string | null | undefined) ?? '';
+        const cta   = (r.call_to_action_type as string | null | undefined) ?? '';
+        if (!title && !body && !cta) return '—';
+        const bodyShort = body.length > 160 ? body.slice(0, 160).trim() + '…' : body;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {title && <div style={{ fontWeight: typography.fontWeight.semibold, color: colors.text.primary }}>{title}</div>}
+            {bodyShort && <div style={{ color: colors.text.secondary, fontSize: typography.fontSize.xs, lineHeight: 1.4 }}>{bodyShort}</div>}
+            {cta && (
+              <span style={{ display: 'inline-block', padding: cellPadding.chip, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold, backgroundColor: colors.brand.primaryFaint, color: colors.brand.primaryDark, width: 'fit-content' }}>
+                {cta.replace(/_/g, ' ')}
+              </span>
+            )}
+          </div>
+        );
+      },
+    });
+  }
   if (opts?.withObjective) {
     cols.push({ key: 'objective', label: 'Objective', align: 'left', render: r => String(r.objective ?? '—') });
   }
@@ -60,10 +158,10 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
     { key: 'clicks',              label: 'Clicks',              numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
     { key: 'reach',               label: 'Reach',               numeric: true, render: r => Number(r.reach       || 0).toLocaleString() },
     { key: 'ctr',                 label: 'CTR',                 numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-    { key: 'cpc',                 label: 'CPC',                 numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-    { key: 'cpm',                 label: 'CPM',                 numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
+    { key: 'cpc',                 label: 'CPC',                 numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+    { key: 'cpm',                 label: 'CPM',                 numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'conversions',         label: 'Conversions',         numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
-    { key: 'cost_per_conversion', label: 'CPA',        numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toFixed(2)}` },
+    { key: 'cost_per_conversion', label: 'CPA',        numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'video_views',         label: 'Video Views',         numeric: true, render: r => Number(r.video_views || 0).toLocaleString() },
   );
   return cols;
@@ -77,15 +175,6 @@ const ENGAGEMENT_COLUMNS: DSTColumn[] = [
   { key: 'comment_count',     label: 'Comments',          numeric: true, render: r => Number(r.comment_count     || 0).toLocaleString() },
   { key: 'video_view',        label: 'Video Views',       numeric: true, render: r => Number(r.video_view        || 0).toLocaleString() },
   { key: 'landing_page_view', label: 'Landing Page Views',numeric: true, render: r => Number(r.landing_page_view || 0).toLocaleString() },
-];
-
-// Video Watch Funnel — one row per milestone across the selected window,
-// count + % of 25% Watched (funnel entry point). Video Views is displayed
-// standalone above the table because it uses a different Meta definition.
-const VIDEO_WATCH_COLUMNS: DSTColumn[] = [
-  { key: 'milestone', label: 'Milestone',   align: 'left' },
-  { key: 'count',     label: 'Count',       numeric: true, render: r => Number(r.count || 0).toLocaleString() },
-  { key: 'rate',      label: '% of 25%',    numeric: true, render: r => r.rate == null ? '—' : `${Number(r.rate).toFixed(1)}%` },
 ];
 
 const TARGETING_COLUMNS: DSTColumn[] = [
@@ -107,10 +196,10 @@ const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'clicks',              label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
   { key: 'reach',               label: 'Reach',       numeric: true, render: r => Number(r.reach       || 0).toLocaleString() },
   { key: 'ctr',                 label: 'CTR',         numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-  { key: 'cpc',                 label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-  { key: 'cpm',                 label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
+  { key: 'cpc',                 label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+  { key: 'cpm',                 label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'conversions',         label: 'Conversions', numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
-  { key: 'cost_per_conversion', label: 'CPA',numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toFixed(2)}` },
+  { key: 'cost_per_conversion', label: 'CPA',numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'video_views',         label: 'Video Views', numeric: true, render: r => Number(r.video_views || 0).toLocaleString() },
 ];
 
@@ -130,15 +219,29 @@ export default function MetaPage() {
   const [filterOptions, setFilterOptions] = useState<MetaFilterOptions>({ campaigns: [], adsets: [], ads: [], creativeTypes: [], objectives: [] });
 
   const [summaryTotals,    setSummaryTotals]    = useState<Totals | null>(null);
+  const [priorTotals,      setPriorTotals]      = useState<Totals | null>(null);
   const [dailyRows,        setDailyRows]        = useState<DailyRow[]>([]);
   const [, setAgencyPerf]                       = useState<AgencyRow[]>([]);
-  const [trendsData,       setTrendsData]       = useState<TrendRow[]>([]);
   const [entityCampaigns,  setEntityCampaigns]  = useState<EntityRow[]>([]);
   const [entityAdsets,     setEntityAdsets]     = useState<EntityRow[]>([]);
   const [entityAds,        setEntityAds]        = useState<EntityRow[]>([]);
+  type PerfTab =
+    | 'campaigns' | 'adsets' | 'ads' | 'daily'
+    | 'engagement' | 'targeting';
+  const [perfTab, setPerfTab] = useState<PerfTab>('campaigns');
+
+  // Trend chart tab — one card, many series. Data comes from dailyRows
+  // (already computed for the scorecards) rather than a separate fetch.
+  type TrendTab =
+    | 'spend_clicks' | 'impressions' | 'reach'
+    | 'ctr' | 'cpc' | 'cpm'
+    | 'conversions' | 'cpa' | 'video_views';
+  const [trendTab, setTrendTab] = useState<TrendTab>('spend_clicks');
   const [engagement,       setEngagement]       = useState<EngagementRow[]>([]);
   const [videoWatch,       setVideoWatch]       = useState<VideoWatchResult>({ videoViews: 0, funnel: [] });
   const [targeting,        setTargeting]        = useState<TargetingRow[]>([]);
+  const [devicesData,      setDevicesData]      = useState<DevicesResult>({ devices: [], placements: [] });
+  const [dowData,          setDowData]          = useState<DayOfWeekRow[]>([]);
   const [fallbackActive,   setFallbackActive]   = useState(false);
   const [bannerDismissed,  setBannerDismissed]  = useState(readBannerDismissed);
 
@@ -147,7 +250,7 @@ export default function MetaPage() {
     getFilterOptions(startDate, endDate).then(setFilterOptions).catch(console.error);
   }, [startDate, endDate]);
 
-  // Below-fold lazy fetch (Snainton port 838ade8).
+  // Below-fold lazy fetch — sentinel-triggered for the heavy tables.
   const [belowFoldRequested, setBelowFoldRequested] = useState(false);
   const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
 
@@ -161,28 +264,50 @@ export default function MetaPage() {
     } catch (e) { console.error(e); }
   }, []);
 
+  // Prior-period fetch — same length window immediately before the current
+  // range, with the same filters applied so the delta is apples-to-apples.
+  // Reuses fetchAboveFold for identical semantics; cached() at the server
+  // action layer means repeat visits pay nothing.
+  const fetchPriorCb = useCallback(async (sd: string, ed: string, f: MetaFilters) => {
+    try {
+      const currStart = new Date(sd).getTime();
+      const currEnd   = new Date(ed).getTime();
+      const lenMs     = currEnd - currStart;
+      const priorEnd  = new Date(currStart - 86_400_000);
+      const priorStart = new Date(priorEnd.getTime() - lenMs);
+      const data = await fetchAboveFold(toIso(priorStart), toIso(priorEnd), f);
+      setPriorTotals(data.totals);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  // Heavy tables that stay behind the scroll sentinel. Split into two Promise.all
+  // groups: the four medium fetches together, then targeting separately so if it
+  // hangs it can't hold up engagement/video/devices.
   const fetchBelowFoldCb = useCallback(async (sd: string, ed: string, f: MetaFilters) => {
     try {
-      const [data, entities, engRows, videoRows, targetRows] = await Promise.all([
-        fetchBelowFold(sd, ed, f),
+      const [entities, engRows, videoRows, devRows, dowRows] = await Promise.all([
         fetchEntityTables(sd, ed, f),
         fetchEngagement(sd, ed, f),
         fetchVideoWatch(sd, ed),
-        fetchTargeting(sd, ed, f),
+        fetchDevices(sd, ed),
+        fetchDayOfWeek(sd, ed),
       ]);
-      setTrendsData(data.trends);
       setEntityCampaigns(entities.campaigns);
       setEntityAdsets(entities.adsets);
       setEntityAds(entities.ads);
       setEngagement(engRows);
       setVideoWatch(videoRows);
-      setTargeting(targetRows);
+      setDevicesData(devRows);
+      setDowData(dowRows);
+      // Targeting last — heaviest single query, independent state update.
+      fetchTargeting(sd, ed, f).then(setTargeting).catch(console.error);
     } catch (e) { console.error(e); }
   }, []);
 
   useEffect(() => {
     fetchAboveFoldCb(startDate, endDate, filters);
-  }, [startDate, endDate, filters, fetchAboveFoldCb]);
+    fetchPriorCb    (startDate, endDate, filters);
+  }, [startDate, endDate, filters, fetchAboveFoldCb, fetchPriorCb]);
   useEffect(() => {
     if (belowFoldRequested) { fetchBelowFoldCb(startDate, endDate, filters); }
   }, [startDate, endDate, filters, belowFoldRequested, fetchBelowFoldCb]);
@@ -190,7 +315,7 @@ export default function MetaPage() {
     if (!sentinelEl || belowFoldRequested) return;
     const io = new IntersectionObserver(
       (entries) => { if (entries.some(e => e.isIntersecting)) { setBelowFoldRequested(true); io.disconnect(); } },
-      { rootMargin: '400px' },
+      { rootMargin: chart.scrollRootMargin },
     );
     io.observe(sentinelEl);
     return () => io.disconnect();
@@ -198,20 +323,51 @@ export default function MetaPage() {
 
   const t = summaryTotals;
 
+  // Trend chart data — normalize dailyRows into the shape MetricTrendsChart
+  // wants (Recharts indexes by series.key, so we just need the right key names).
+  // Rename spend_aud → spend so the series config reads naturally.
+  const chartData = useMemo(() => dailyRows.map(d => ({
+    date:                d.date,
+    spend:               d.spend_aud,
+    impressions:         d.impressions,
+    clicks:              d.clicks,
+    reach:               d.reach,
+    ctr:                 d.ctr,
+    cpc:                 d.cpc,
+    cpm:                 d.cpm,
+    conversions:         d.conversions          ?? 0,
+    cost_per_conversion: d.cost_per_conversion  ?? null,
+    video_views:         d.video_views          ?? 0,
+  })), [dailyRows]);
+
   // Sparklines — widened; every tile gets a series. Null → 0 fallback per spec.
+  // Frequency is derived per day as impressions/reach (no baked-in field on
+  // dailyRows) — matches the totals-level derivation below.
   const spark = useMemo(() => ({
     spend:       dailyRows.map(d => d.spend_aud            ?? 0),
     impressions: dailyRows.map(d => d.impressions          ?? 0),
     clicks:      dailyRows.map(d => d.clicks               ?? 0),
     reach:       dailyRows.map(d => d.reach                ?? 0),
+    frequency:   dailyRows.map(d => d.reach ? d.impressions / d.reach : 0),
     ctr:         dailyRows.map(d => d.ctr                  ?? 0),
     cpc:         dailyRows.map(d => d.cpc                  ?? 0),
     cpm:         dailyRows.map(d => d.cpm                  ?? 0),
     leads:       dailyRows.map(d => d.leads                ?? 0),
     conversions: dailyRows.map(d => d.conversions          ?? 0),
+    convRate:    dailyRows.map(d => d.clicks ? ((d.conversions ?? 0) / d.clicks) * 100 : 0),
     cpa:         dailyRows.map(d => d.cost_per_conversion  ?? 0),
     videoViews:  dailyRows.map(d => d.video_views          ?? 0),
   }), [dailyRows]);
+
+  // Frequency = impressions / reach at the totals level (Meta's canonical
+  // definition; a summed daily average would double-count returning users).
+  const frequency      = t?.reach ? (t.impressions / t.reach) : null;
+  const priorFrequency = priorTotals?.reach ? (priorTotals.impressions / priorTotals.reach) : null;
+
+  // Conversion Rate = conversions / clicks × 100. Meta-attributed
+  // conversions per META_CONVERSION_DEFINITION over paid clicks.
+  const convRate      = t?.clicks ? ((t.conversions ?? 0) / t.clicks) * 100 : null;
+  const priorConvRate = priorTotals?.clicks ? ((priorTotals.conversions ?? 0) / priorTotals.clicks) * 100 : null;
 
   // Daily Summary totals row — sums over the full range, matching the totals
   // convention (visible rows are paginated to 10 via Show More; totals are
@@ -348,12 +504,12 @@ export default function MetaPage() {
           onMouseEnter={e => { if (!refreshing) e.currentTarget.style.backgroundColor = colors.brand.primaryDark; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.ui.tealAlt; }}
           style={{
-            height: '36.5px',
+            height: controls.selectHeight,
             backgroundColor: colors.ui.tealAlt,
             color: colors.text.inverse,
             border: 'none',
-            borderRadius: 4,
-            padding: '0 16px',
+            borderRadius: borderRadius.none,
+            padding: cellPadding.pillLg,
             fontSize: typography.fontSize.sm,
             fontWeight: typography.fontWeight.medium,
             cursor: refreshing ? 'wait' : 'pointer',
@@ -366,25 +522,33 @@ export default function MetaPage() {
       </div>
 
       {/* ── Blue scorecards (atWork roster: summed range totals + ratios) ── */}
+      {/* 12 tiles laid out 6×2. Every tile carries a period-over-period
+          delta below the value; per-metric goodDirection tells the card
+          how to color the arrow (up-good for volume/efficiency, down-good
+          for unit costs, null for Spend where a bigger number isn't
+          inherently good or bad). */}
       <div
+        className="scorecard-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 160px)',
+          gridTemplateColumns: `repeat(6, ${card.gridCardMin})`,
           gap: spacing.sm,
           justifyContent: 'center',
           marginBottom: spacing.xs,
         }}
       >
-        <BFScorecard title="Spend"              value={fmtMoney(t?.spend_aud          ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" />
-        <BFScorecard title="Impressions"        value={fmtInt(t?.impressions          ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" />
-        <BFScorecard title="Clicks"             value={fmtInt(t?.clicks               ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" />
-        <BFScorecard title="Reach"              value={fmtInt(t?.reach                ?? 0)}    sparklineData={spark.reach}       color="blue" size="small" />
-        <BFScorecard title="CTR"                value={fmtCtr(t?.ctr                  ?? null)} sparklineData={spark.ctr}         color="blue" size="small" />
-        <BFScorecard title="CPC"                value={fmtMoney(t?.cpc                ?? null)} sparklineData={spark.cpc}         color="blue" size="small" />
-        <BFScorecard title="CPM"                value={fmtMoney(t?.cpm                ?? null)} sparklineData={spark.cpm}         color="blue" size="small" />
-        <BFScorecard title="Conversions"        value={fmtInt(t?.conversions          ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" />
-        <BFScorecard title="Cost per Conversion"value={fmtMoney(t?.cost_per_conversion?? null)} sparklineData={spark.cpa}         color="blue" size="small" />
-        <BFScorecard title="Video Views"        value={fmtInt(t?.video_views          ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" />
+        <BFScorecard title="Spend"              value={fmtMoney(t?.spend_aud          ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" delta={{ pct: deltaPct(t?.spend_aud,           priorTotals?.spend_aud),           goodDirection: null   }} />
+        <BFScorecard title="Impressions"        value={fmtInt(t?.impressions          ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" delta={{ pct: deltaPct(t?.impressions,         priorTotals?.impressions),         goodDirection: 'up'   }} />
+        <BFScorecard title="Clicks"             value={fmtInt(t?.clicks               ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" delta={{ pct: deltaPct(t?.clicks,              priorTotals?.clicks),              goodDirection: 'up'   }} />
+        <BFScorecard title="Reach"              value={fmtInt(t?.reach                ?? 0)}    sparklineData={spark.reach}       color="blue" size="small" delta={{ pct: deltaPct(t?.reach,               priorTotals?.reach),               goodDirection: 'up'   }} />
+        <BFScorecard title="Frequency"          value={fmtFreq(frequency)}                       sparklineData={spark.frequency}   color="blue" size="small" delta={{ pct: deltaPct(frequency,              priorFrequency),                   goodDirection: 'down' }} />
+        <BFScorecard title="CTR"                value={fmtCtr(t?.ctr                  ?? null)} sparklineData={spark.ctr}         color="blue" size="small" delta={{ pct: deltaPct(t?.ctr,                 priorTotals?.ctr),                 goodDirection: 'up'   }} />
+        <BFScorecard title="CPC"                value={fmtMoney(t?.cpc                ?? null)} sparklineData={spark.cpc}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpc,                 priorTotals?.cpc),                 goodDirection: 'down' }} />
+        <BFScorecard title="CPM"                value={fmtMoney(t?.cpm                ?? null)} sparklineData={spark.cpm}         color="blue" size="small" delta={{ pct: deltaPct(t?.cpm,                 priorTotals?.cpm),                 goodDirection: 'down' }} />
+        <BFScorecard title="Conversions"        value={fmtInt(t?.conversions          ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" delta={{ pct: deltaPct(t?.conversions,         priorTotals?.conversions),         goodDirection: 'up'   }} />
+        <BFScorecard title="Conversion Rate"    value={fmtCtr(convRate)}                         sparklineData={spark.convRate}    color="blue" size="small" delta={{ pct: deltaPct(convRate,               priorConvRate),                    goodDirection: 'up'   }} />
+        <BFScorecard title="Cost per Conversion"value={fmtMoney(t?.cost_per_conversion?? null)} sparklineData={spark.cpa}         color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_conversion, priorTotals?.cost_per_conversion), goodDirection: 'down' }} />
+        <BFScorecard title="Video Views"        value={fmtInt(t?.video_views          ?? 0)}    sparklineData={spark.videoViews}  color="blue" size="small" delta={{ pct: deltaPct(t?.video_views,         priorTotals?.video_views),         goodDirection: 'up'   }} />
       </div>
       <div
         style={{
@@ -392,147 +556,386 @@ export default function MetaPage() {
           fontSize: typography.fontSize.xs,
           color: colors.text.secondary,
           marginBottom: spacing.lg,
+          lineHeight: 1.5,
         }}
       >
-        Conversions = {META_CONVERSION_DEFINITION}
+        <div>
+          ▲ / ▼ arrows compare against the equivalent immediately-prior period
+          of the same length as the selected date range.
+        </div>
+        <div>Conversions = {META_CONVERSION_DEFINITION}</div>
       </div>
+
+      {/* Top Performers — client-side pick from entityAds with noise floors so
+          a 1-impression ad can't take the top spot. Teal borders match the
+          scorecard visual language. */}
+      {entityAds.length > 0 && (() => {
+        const withImpr = entityAds.filter(a => a.impressions >= 500);
+        const withConv = entityAds.filter(a => (a.conversions ?? 0) >= 3);
+        const withReach = entityAds.filter(a => a.reach >= 500);
+        const bestCtr = withImpr.slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
+        const bestCpa = withConv.slice().sort((a, b) => (a.cost_per_conversion ?? Infinity) - (b.cost_per_conversion ?? Infinity))[0];
+        const bestCpc = withReach.slice().sort((a, b) => (a.cpc ?? Infinity) - (b.cpc ?? Infinity))[0];
+        const highlights: { label: string; value: string; ad: EntityRow | undefined }[] = [
+          { label: 'Best CTR (500+ impr)',    value: bestCtr ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                : '—', ad: bestCtr },
+          { label: 'Best CPA (3+ conv)',      value: bestCpa ? `$${(bestCpa.cost_per_conversion ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', ad: bestCpa },
+          { label: 'Cheapest CPC (500+ reach)', value: bestCpc ? `$${(bestCpc.cpc ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`               : '—', ad: bestCpc },
+        ];
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
+            {highlights.map(h => (
+              <div key={h.label} style={{ flex: `1 1 ${card.flexBasis}`, minWidth: 0, border: `${borderWidth.medium} solid ${colors.ui.teal}`, borderRadius: borderRadius.none, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
+                <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                  {h.label}
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: typography.fontWeight.bold, color: colors.text.primary, fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>
+                  {h.value}
+                </div>
+                {h.ad && (
+                  <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={h.ad.name}>
+                    {h.ad.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* B2 sentinel: fires below-fold fetch when user scrolls near this point */}
       <div ref={setSentinelEl} aria-hidden style={{ height: 1 }} />
       {/* ── Full-width bottom sections ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
 
-        {/* Primary chart: Spend + Clicks on a dual axis. Spend (currency,
-            left) and Clicks (count, right) live on different scales, so each
-            gets its own y-axis. CPC and CPM removed as trend charts — both
-            appear as scorecards and per-day in Daily Summary. */}
-        <ChartContainer title="Metric Trends — Spend & Clicks">
-          <MetricTrendsChart
-            data={trendsData}
-            leftYUnit="currency"
-            rightYUnit="number"
-            series={[
-              { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
-              { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
-            ]}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Metric Trends — CTR">
-          <MetricTrendsChart
-            data={trendsData}
-            yUnit="percent"
-            series={[{ key: 'ctr', label: 'CTR', color: colors.chart[3] }]}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Daily Summary">
-          <DailySummaryTable
-            data={dailyRows as unknown as Record<string, unknown>[]}
-            columns={DAILY_COLUMNS}
-            sortable
-            initialSort={{ key: 'date', direction: 'desc' }}
-            totalsRow={dailyTotals as unknown as Record<string, unknown>}
-            paginate={10}
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Campaigns">
-          <DailySummaryTable
-            data={entityCampaigns as unknown as DailyRow[]}
-            columns={entityColumns('Campaign', { withObjective: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Ad Sets">
-          <DailySummaryTable
-            data={entityAdsets as unknown as DailyRow[]}
-            columns={entityColumns('Ad Set')}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
-        </ChartContainer>
-
-        <ChartContainer title="Ads">
-          <DailySummaryTable
-            data={visibleEntityAds as unknown as DailyRow[]}
-            columns={entityColumns('Ad Name', { withMediaType: true })}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
-          {hiddenAdsCount > 0 && (
-            <div style={{
-              marginTop: spacing.sm,
-              textAlign: 'right',
-              fontSize: typography.fontSize.xs,
-              color: colors.text.secondary,
-            }}>
-              {hiddenAdsCount} ad{hiddenAdsCount === 1 ? '' : 's'} hidden — spend below ${ADS_SPEND_THRESHOLD} over the selected range.
-            </div>
-          )}
-        </ChartContainer>
-
-        <ChartContainer title="Engagement (per ad)">
-          <DailySummaryTable
-            data={visibleEngagement as unknown as DailyRow[]}
-            columns={ENGAGEMENT_COLUMNS}
-            sortable
-            initialSort={{ key: 'post_engagement', direction: 'desc' }}
-            autoHeight
-          />
-          {hiddenEngagementCount > 0 && (
-            <div style={{
-              marginTop: spacing.sm,
-              textAlign: 'right',
-              fontSize: typography.fontSize.xs,
-              color: colors.text.secondary,
-            }}>
-              {hiddenEngagementCount} ad{hiddenEngagementCount === 1 ? '' : 's'} hidden — post engagement below {ENGAGEMENT_THRESHOLD} over the selected range.
-            </div>
-          )}
-        </ChartContainer>
-
-        <ChartContainer title="Video Watch Funnel (account level)">
-          <div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              padding: `${spacing.sm} ${spacing.md}`,
-              backgroundColor: colors.background.panel,
-              borderBottom: `1px solid ${colors.border.default}`,
-              marginBottom: spacing.sm,
-            }}>
-              <div>
-                <span style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary }}>Video Views</span>{' '}
-                <span style={{ fontSize: typography.fontSize.lg, fontWeight: typography.fontWeight.bold, color: colors.text.primary, marginLeft: spacing.sm }}>
-                  {fmtInt(videoWatch.videoViews)}
-                </span>
-              </div>
-              <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, maxWidth: 640, textAlign: 'right' }}>
-                Video Views uses Meta&apos;s 3-sec definition; 25% Watched uses 25%-of-duration. They&apos;re counted differently, so the funnel below is a % of 25% Watched, not of Video Views.
-              </div>
-            </div>
-            <DailySummaryTable
-              data={videoWatch.funnel as unknown as DailyRow[]}
-              columns={VIDEO_WATCH_COLUMNS}
-            />
+        {/* One tabbed line-chart card — each tab renders a different series
+            or metric family against the same daily-aggregated source
+            (chartData, derived from dailyRows). Default is Spend & Clicks
+            on a dual axis; single-metric tabs use their natural unit. */}
+        <ChartContainer title="Metric Trends">
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>Metric:</span>
+            {([
+              { key: 'spend_clicks', label: 'Spend & Clicks' },
+              { key: 'impressions',  label: 'Impressions'    },
+              { key: 'reach',        label: 'Reach'          },
+              { key: 'ctr',          label: 'CTR'            },
+              { key: 'cpc',          label: 'CPC'            },
+              { key: 'cpm',          label: 'CPM'            },
+              { key: 'conversions',  label: 'Conversions'    },
+              { key: 'cpa',          label: 'CPA'            },
+              { key: 'video_views',  label: 'Video Views'    },
+            ] as { key: TrendTab; label: string }[]).map(opt => {
+              const active = trendTab === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setTrendTab(opt.key)}
+                  style={{
+                    padding: cellPadding.button,
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    fontFamily: typography.fontFamily.sans,
+                    cursor: 'pointer',
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
+                    backgroundColor: active ? colors.brand.primary : '#fff',
+                    color: active ? colors.brand.primaryText : colors.text.primary,
+                    borderRadius: borderRadius.none,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
+          {(() => {
+            // Recharts consumes data[series.key] — chartData rows are looser
+            // than TrendRow but the chart doesn't care at runtime.
+            const data = chartData as unknown as import('@/app/meta/actions').TrendRow[];
+            switch (trendTab) {
+              case 'impressions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'impressions',         label: 'Impressions', color: colors.chart[1] }]} />;
+              case 'reach':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'reach',               label: 'Reach',       color: colors.chart[2] }]} />;
+              case 'ctr':
+                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'ctr',                 label: 'CTR',         color: colors.chart[3] }]} />;
+              case 'cpc':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpc',                 label: 'CPC',         color: colors.chart[4] }]} />;
+              case 'cpm':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cpm',                 label: 'CPM',         color: colors.chartDark[0] }]} />;
+              case 'conversions':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'conversions',         label: 'Conversions', color: colors.chartDark[1] }]} />;
+              case 'cpa':
+                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cost_per_conversion', label: 'CPA',         color: colors.chartDark[2] }]} />;
+              case 'video_views':
+                return <MetricTrendsChart data={data} yUnit="number"   series={[{ key: 'video_views',         label: 'Video Views', color: colors.chart[0] }]} />;
+              case 'spend_clicks':
+              default:
+                return (
+                  <MetricTrendsChart
+                    data={data}
+                    leftYUnit="currency"
+                    rightYUnit="number"
+                    series={[
+                      { key: 'spend',  label: 'Spend',  color: colors.chart[1],     yAxisId: 'left'  },
+                      { key: 'clicks', label: 'Clicks', color: colors.chartDark[0], yAxisId: 'right' },
+                    ]}
+                  />
+                );
+            }
+          })()}
         </ChartContainer>
 
-        <ChartContainer title="Targeting (per ad set)">
-          <DailySummaryTable
-            data={targeting as unknown as DailyRow[]}
-            columns={TARGETING_COLUMNS}
-            sortable
-            initialSort={{ key: 'spend', direction: 'desc' }}
-            autoHeight
-          />
+        {/* 2×2 bar-chart grid: Video Watch Funnel, Devices, Placements,
+            Day of Week. All account-level. Half-width per panel on desktop
+            (see card.flexHalf; matches the spacing.lg column gap), stacks
+            on narrow viewports. Day of Week has its own internal renderer
+            since it shows 3 stats per row instead of 2 and uses shorter
+            weekday labels. */}
+        {(() => {
+          const funnelMax = videoWatch.funnel.reduce((m, r) => Math.max(m, r.count), 0);
+          const deviceMax = devicesData.devices.reduce((m, r) => Math.max(m, r.impressions), 0);
+          const placeMax  = devicesData.placements.reduce((m, r) => Math.max(m, r.impressions), 0);
+          const panels: {
+            title: string;
+            emptyLabel: string;
+            rows: { key: string; label: string; barPct: number; primary: string; secondary: string }[];
+          }[] = [
+            {
+              title: 'Video Watch Funnel',
+              emptyLabel: 'No video watch data in the selected window.',
+              rows: videoWatch.funnel.map(r => ({
+                key: r.milestone,
+                label: r.milestone,
+                barPct: funnelMax > 0 ? (r.count / funnelMax) * 100 : 0,
+                primary: fmtInt(r.count),
+                secondary: r.rate == null ? '—' : `${Number(r.rate).toFixed(1)}%`,
+              })),
+            },
+            {
+              title: 'Devices',
+              emptyLabel: 'No device data in the selected window.',
+              rows: devicesData.devices.map(r => ({
+                key: r.name,
+                label: r.name,
+                barPct: deviceMax > 0 ? (r.impressions / deviceMax) * 100 : 0,
+                primary: fmtInt(r.impressions),
+                secondary: `${fmtInt(r.clicks)} clk`,
+              })),
+            },
+            {
+              title: 'Placements',
+              emptyLabel: 'No placement data in the selected window.',
+              rows: devicesData.placements.map(r => ({
+                key: r.name,
+                label: r.name,
+                barPct: placeMax > 0 ? (r.impressions / placeMax) * 100 : 0,
+                primary: fmtInt(r.impressions),
+                secondary: `${fmtInt(r.clicks)} clk`,
+              })),
+            },
+          ];
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
+              {panels.map(panel => (
+                <div key={panel.title} style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
+                  <ChartContainer title={panel.title}>
+                    <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                      {panel.rows.length === 0 || panel.rows.every(r => r.barPct === 0) ? (
+                        <div style={{ padding: spacing.md, color: colors.text.secondary, fontSize: typography.fontSize.sm, textAlign: 'center' }}>
+                          {panel.emptyLabel}
+                        </div>
+                      ) : panel.rows.map(row => (
+                        <div key={row.key} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                          <div style={{
+                            width: 90,
+                            flexShrink: 0,
+                            fontSize: typography.fontSize.xs,
+                            fontWeight: typography.fontWeight.semibold,
+                            color: colors.text.primary,
+                            textAlign: 'right',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }} title={row.label}>
+                            {row.label}
+                          </div>
+                          <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 30 }}>
+                            <div style={{
+                              width: `${row.barPct}%`,
+                              height: '100%',
+                              backgroundColor: colors.ui.teal,
+                              transition: 'width 240ms ease-out',
+                            }} />
+                          </div>
+                          <div style={{
+                            width: 90,
+                            flexShrink: 0,
+                            fontSize: typography.fontSize.xs,
+                            color: colors.text.primary,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: 4,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}>
+                            <span style={{ fontWeight: typography.fontWeight.semibold }}>{row.primary}</span>
+                            <span style={{ color: colors.text.secondary }}>{row.secondary}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ChartContainer>
+                </div>
+              ))}
+              {dowData.some(d => d.spend > 0) && (
+                <div style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
+                  <ChartContainer title="Performance by Day of Week">
+                    <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                      {(() => {
+                        const maxSpend = Math.max(...dowData.map(d => d.spend));
+                        return dowData.map(d => {
+                          const pct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
+                          return (
+                            <div key={d.weekday_idx} style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                              <div style={{ width: 46, flexShrink: 0, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, textAlign: 'right' }}>
+                                {d.weekday}
+                              </div>
+                              <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
+                                <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
+                              </div>
+                              <div style={{ width: preview.iframeW, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                                <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
+                                <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
+                                <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </ChartContainer>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* One consolidated tabbed table — folds Campaigns / Ad Sets / Ads /
+            Daily Summary / Engagement / Targeting into a single card. The
+            bar-chart cards above stay visual (Video Watch, Devices,
+            Placements, Day of Week). */}
+        <ChartContainer title="Performance">
+          <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap', marginBottom: spacing.md, paddingLeft: spacing.md }}>
+            <span style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text.secondary }}>View:</span>
+            {([
+              { key: 'campaigns',  label: 'Campaigns'     },
+              { key: 'adsets',     label: 'Ad Sets'       },
+              { key: 'ads',        label: 'Ads'           },
+              { key: 'daily',      label: 'Daily Summary' },
+              { key: 'engagement', label: 'Engagement'    },
+              { key: 'targeting',  label: 'Targeting'     },
+            ] as { key: PerfTab; label: string }[]).map(opt => {
+              const active = perfTab === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setPerfTab(opt.key)}
+                  style={{
+                    padding: cellPadding.button,
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    fontFamily: typography.fontFamily.sans,
+                    cursor: 'pointer',
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
+                    backgroundColor: active ? colors.brand.primary : '#fff',
+                    color: active ? colors.brand.primaryText : colors.text.primary,
+                    borderRadius: borderRadius.none,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {(() => {
+            switch (perfTab) {
+              case 'adsets':
+                return (
+                  <DailySummaryTable
+                    data={entityAdsets as unknown as DailyRow[]}
+                    columns={entityColumns('Ad Set')}
+                    sortable
+                    initialSort={{ key: 'spend', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+              case 'ads':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={visibleEntityAds as unknown as DailyRow[]}
+                      columns={entityColumns('Ad Name', { withMediaType: true, withPreview: true, withAdCopy: true })}
+                      sortable
+                      initialSort={{ key: 'spend', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {hiddenAdsCount > 0 && (
+                      <div style={{ marginTop: spacing.sm, textAlign: 'right', fontSize: typography.fontSize.xs, color: colors.text.secondary }}>
+                        {hiddenAdsCount} ad{hiddenAdsCount === 1 ? '' : 's'} hidden — spend below ${ADS_SPEND_THRESHOLD} over the selected range.
+                      </div>
+                    )}
+                  </>
+                );
+              case 'engagement':
+                return (
+                  <>
+                    <DailySummaryTable
+                      data={visibleEngagement as unknown as DailyRow[]}
+                      columns={ENGAGEMENT_COLUMNS}
+                      sortable
+                      initialSort={{ key: 'post_engagement', direction: 'desc' }}
+                      paginate={20}
+                    />
+                    {hiddenEngagementCount > 0 && (
+                      <div style={{ marginTop: spacing.sm, textAlign: 'right', fontSize: typography.fontSize.xs, color: colors.text.secondary }}>
+                        {hiddenEngagementCount} ad{hiddenEngagementCount === 1 ? '' : 's'} hidden — post engagement below {ENGAGEMENT_THRESHOLD} over the selected range.
+                      </div>
+                    )}
+                  </>
+                );
+              case 'targeting':
+                return (
+                  <DailySummaryTable
+                    data={targeting as unknown as DailyRow[]}
+                    columns={TARGETING_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'spend', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+              case 'daily':
+                return (
+                  <DailySummaryTable
+                    data={dailyRows as unknown as Record<string, unknown>[]}
+                    columns={DAILY_COLUMNS}
+                    sortable
+                    initialSort={{ key: 'date', direction: 'desc' }}
+                    totalsRow={dailyTotals as unknown as Record<string, unknown>}
+                    paginate={10}
+                  />
+                );
+              case 'campaigns':
+              default:
+                return (
+                  <DailySummaryTable
+                    data={entityCampaigns as unknown as DailyRow[]}
+                    columns={entityColumns('Campaign', { withObjective: true })}
+                    sortable
+                    initialSort={{ key: 'spend', direction: 'desc' }}
+                    paginate={20}
+                  />
+                );
+            }
+          })()}
         </ChartContainer>
 
       </div>

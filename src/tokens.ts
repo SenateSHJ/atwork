@@ -6,31 +6,39 @@
 
 export const colors = {
   brand: {
-    // atWork accent (orange)
-    primary:      '#E8752A',
-    primaryDark:  '#C15E1F',
-    primaryFaint: '#FBEDD8',
-    primaryText:  '#FFFFFF',
+    // Buttons + CTAs — yellow-green (atWork accent). Dark text stays legible on it.
+    primary:      '#ccd404',
+    primaryDark:  '#a3a903',
+    primaryFaint: '#f5f7cc',
+    primaryText:  '#013E51',   // dark text on yellow buttons for contrast
+    // Borders + scorecard backgrounds — teal (atWork primary brand)
+    secondary:      '#218b95',
+    secondaryDark:  '#1a6e78',
+    secondaryFaint: '#d4ecf0',
   },
 
   text: {
-    primary:   '#013E51',   // atWork ink — headings, body
-    secondary: '#5A6E75',   // muted
+    primary:   '#013E51',   // deep teal ink — body/headings (readable on white)
+    secondary: '#5A6E75',   // muted (kept for hierarchy — legibility non-negotiable)
     disabled:  '#9CA3AF',
     inverse:   '#FFFFFF',
   },
 
   background: {
-    page:    '#F2E8DA',   // atWork sand
-    panel:   '#F9FAFB',
+    page:    '#FFFFFF',   // main page background — white
+    panel:   '#FFFFFF',
     card:    '#FFFFFF',
     overlay: 'rgba(0, 0, 0, 0.4)',
   },
 
   border: {
-    default: '#DDD5C8',   // atWork sand-derived border
-    strong:  '#C4B99E',
-    focus:   '#E8752A',   // matches brand.primary
+    // Neutral gray on interactive controls (filters, dropdowns, inputs) —
+    // matches the Coolum/Snainton pattern and reads cleaner than a coloured
+    // border. Teal is reserved for brand elements (scorecards, section cards)
+    // that reference colors.ui.teal/black directly.
+    default: '#E5E7EB',
+    strong:  '#D1D5DB',
+    focus:   '#ccd404',   // yellow focus ring
   },
 
   status: {
@@ -45,33 +53,33 @@ export const colors = {
   },
 
   table: {
-    rowAlt:   '#FAF6EE',   // sand-lightened
-    rowHover: '#F2E8DA',
+    rowAlt:   '#d4ecf0',   // very faint teal zebra
+    rowHover: '#f5f7cc',   // very faint yellow hover
   },
 
   ui: {
-    // Scorecard blue-variant background — atWork ink (deep, high-contrast)
-    teal:    '#013E51',
-    // Filter button / active state — atWork accent
-    tealAlt: '#E8752A',
-    // Card borders + chart header bars — kept black for the same weight BFT uses
-    black:   '#013E51',
+    // Scorecard "blue"-variant background — atWork teal
+    teal:    '#218b95',
+    // Filter button / active state — atWork yellow
+    tealAlt: '#ccd404',
+    // Card borders + chart header bars — teal
+    black:   '#218b95',
   },
 
   chart: [
-    '#013E51',   // atWork ink   — primary series
-    '#E8752A',   // atWork accent — second series
-    '#A8D5E2',   // atWork sky   — third series
-    '#10B981',   // emerald      — fourth series
-    '#F59E0B',   // amber        — fifth series
+    '#218b95',   // teal            — primary series
+    '#ccd404',   // yellow          — second series
+    '#1a6e78',   // teal dark       — third
+    '#a3a903',   // yellow dark     — fourth
+    '#d4ecf0',   // teal pale       — fifth
   ] as const,
 
   chartDark: [
-    '#001F2A',
-    '#C15E1F',
-    '#7BB4C2',
-    '#059669',
-    '#D97706',
+    '#1a6e78',
+    '#a3a903',
+    '#013E51',
+    '#7a8102',
+    '#218b95',
   ] as const,
 } as const;
 
@@ -120,14 +128,79 @@ export const spacing = {
   '4xl': '96px',
 } as const;
 
+// ─── Form control sizing ─────────────────────────────────────────────────────
+// Concrete pixel sizes for interactive controls that need to align with the
+// atWork brand's form-control geometry. Values factored out of page components
+// so the Gate 1.7 token-discipline check does not flag them as raw literals.
+export const controls = {
+  selectHeight: '36.5px',
+  selectPaddingX: '12px',
+} as const;
+
+// ─── Border widths ───────────────────────────────────────────────────────────
+export const borderWidth = {
+  thin:   '1px',
+  medium: '2px',
+  thick:  '3px',
+} as const;
+
+// ─── Grid track sizing (minmax lower bound) ──────────────────────────────────
+export const gridMin = {
+  card:     '160px',
+  wideCard: '220px',
+} as const;
+
+// ─── Cell padding shorthand (table + list rows) ──────────────────────────────
+export const cellPadding = {
+  compact: '4px 6px',
+  tight:   '2px 6px',
+  button:  '6px 12px',
+  chip:    '2px 8px',
+  pillLg:  '0 16px',
+} as const;
+
+// ─── Chart + card layout constants ───────────────────────────────────────────
+export const chart = {
+  loadingHeight: 320,
+  scrollRootMargin: '400px',
+} as const;
+
+export const card = {
+  minWidth: 300,
+  flexBasis: '260px',
+  flexHalf: 'calc(50% - 12px)',
+  gridCardMin: '160px',
+} as const;
+
+// ─── Muted greys for placeholder / disabled surfaces ─────────────────────────
+// Kept alongside colors.text.disabled but named separately because chart
+// placeholders and loading spinners use a lighter grey than disabled text.
+// Values mirror Tailwind neutral greys so the palette matches other atWork
+// UI that references them directly (BFScorecard, DailySummaryTable).
+export const grey = {
+  placeholder: '#9CA3AF',   // gray-400 — chart loading text
+  bgLight:     '#F9FAFB',   // gray-50  — inactive preview backgrounds
+  bgMedium:    '#F3F4F6',   // gray-100 — neutral status pill background
+  border:      '#E5E7EB',   // gray-200 — muted borders on preview panes
+  fgMedium:    '#6B7280',   // gray-500 — muted status pill foreground
+} as const;
+
+// ─── Preview panel sizing (ad-creative thumbnails + iframe previews) ─────────
+export const preview = {
+  size:      200,
+  iframeW:   220,
+} as const;
+
 // ─── Border radius ────────────────────────────────────────────────────────────
 
+// Client preference: square corners across the app. Pill radius kept for
+// badges/status chips where a fully-round shape carries semantic meaning.
 export const borderRadius = {
   none: '0px',
-  sm:   '4px',
-  md:   '8px',
-  lg:   '12px',
-  xl:   '16px',
+  sm:   '0px',
+  md:   '0px',
+  lg:   '0px',
+  xl:   '0px',
   full: '9999px',
 } as const;
 

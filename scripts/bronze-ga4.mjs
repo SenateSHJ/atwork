@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Bronze ingestion: GA4 (BigQuery → Supabase)
 // Run: npm run ingest:ga4
-// Reads: thermal-effort-460301-m7.google_analytics_4.*
+// Reads: ${GCP_PROJECT_ID}.google_analytics_4.*
 // Writes: bronze.ga4_* tables
 // NOTE: These are pre-aggregated Weld report tables, not raw GA4 events.
 
@@ -9,8 +9,9 @@ import { execSync } from 'child_process'
 import { createClient } from '@supabase/supabase-js'
 import WebSocket from 'ws'
 
-const PROJECT = 'thermal-effort-460301-m7'
-const DATASET = 'google_analytics_4'
+const PROJECT = process.env.GCP_PROJECT_ID
+const DATASET = 'atWork_Google_Analytics_4'
+if (!PROJECT) throw new Error('GCP_PROJECT_ID env var required (source .envrc)')
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -19,11 +20,26 @@ if (!SUPABASE_URL || !SERVICE_KEY) throw new Error('Missing Supabase env vars')
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false }, realtime: { transport: WebSocket } })
 const bronze = sb.schema('bronze')
 
-function bq(sql) {
-  const result = execSync(
-    `bq query --nouse_legacy_sql --project_id=${PROJECT} --format=json --max_rows=50000 '${sql.replace(/'/g, "'\\''")}'`,
-    { encoding: 'utf8', env: { ...process.env, CLOUDSDK_CONFIG: process.env.CLOUDSDK_CONFIG } }
-  )
+function bq(sql, label) {
+  let result
+  try {
+    result = execSync(
+      `bq query --nouse_legacy_sql --project_id=${PROJECT} --format=json --max_rows=50000 '${sql.replace(/'/g, "'\\''")}'`,
+      { encoding: 'utf8', maxBuffer: 200 * 1024 * 1024, env: { ...process.env, CLOUDSDK_CONFIG: process.env.CLOUDSDK_CONFIG } }
+    )
+  } catch (e) {
+    const stdout = String(e.stdout ?? '') + String(e.stderr ?? '')
+    if (/Not found: Table/i.test(stdout)) {
+      console.warn(`  ⚠ ${label ?? 'query'}: source table not in BQ (Weld stream not enabled?)`)
+      return []
+    }
+    const colMatch = stdout.match(/Unrecognized name:\s+(\w+)/i)
+    if (colMatch) {
+      console.warn(`  ⚠ ${label ?? 'query'}: column "${colMatch[1]}" not in atWork BQ schema — skipping`)
+      return []
+    }
+    throw e
+  }
   return JSON.parse(result)
 }
 

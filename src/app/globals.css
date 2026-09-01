@@ -4,19 +4,19 @@
 
 :root {
   /* atWork brand tokens — RGB channels so Tailwind opacity modifiers work */
-  --brand-ink:    1 62 81;      /* #013E51 — headings, nav, primary chart series */
-  --brand-accent: 232 117 42;   /* #E8752A — buttons, active states */
-  --brand-sand:   242 232 218;  /* #F2E8DA — page background, table zebra */
-  --brand-sky:    168 213 226;  /* #A8D5E2 — secondary series, tags */
+  --brand-ink:    1 62 81;      /* #013E51 — deep teal for text (readability) */
+  --brand-accent: 204 212 4;    /* #ccd404 — buttons, CTAs (atWork yellow) */
+  --brand-sand:   255 255 255;  /* white — page background */
+  --brand-sky:    33 139 149;   /* #218b95 — borders, scorecard bg (atWork teal) */
 
   --bg-card:      #ffffff;
   --text-muted:   #5a6e75;
-  --border:       #ddd5c8;
+  --border:       #e5e7eb;
 }
 
 @layer base {
   body {
-    @apply bg-sand text-ink;
+    @apply bg-white text-ink;
     font-family: Inter, system-ui, sans-serif;
   }
 
@@ -27,16 +27,16 @@
 
 @layer components {
   .card {
-    @apply bg-white rounded-xl border border-[var(--border)] shadow-sm;
+    @apply bg-white rounded-none border border-[var(--border)] shadow-sm;
   }
 
   .btn-primary {
-    @apply bg-accent text-white px-4 py-2 rounded-lg text-sm font-medium
+    @apply bg-accent text-ink px-4 py-2 rounded-none text-sm font-medium
            hover:opacity-90 transition-opacity;
   }
 
   .btn-ghost {
-    @apply text-ink px-3 py-1.5 rounded-lg text-sm font-medium
+    @apply text-ink px-3 py-1.5 rounded-none text-sm font-medium
            hover:bg-ink/5 transition-colors;
   }
 
@@ -58,7 +58,7 @@
 
   .table-header {
     @apply text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]
-           bg-sand/60 px-4 py-3 text-left;
+           bg-white px-4 py-3 text-left;
   }
 
   .table-cell {
@@ -70,12 +70,12 @@
   }
 
   .nav-link {
-    @apply px-3 py-2 rounded-lg text-sm font-medium text-ink/70
+    @apply px-3 py-2 rounded-none text-sm font-medium text-ink/70
            hover:text-ink hover:bg-ink/5 transition-colors;
   }
 
   .nav-link-active {
-    @apply px-3 py-2 rounded-lg text-sm font-medium bg-ink text-white;
+    @apply px-3 py-2 rounded-none text-sm font-medium bg-ink text-white;
   }
 
   .section-title {
@@ -90,3 +90,40 @@
     @apply card p-4 border-dashed opacity-60;
   }
 }
+
+/* ── Responsive shell — mobile ≤900px.
+      Desktop (>900px) is UNCHANGED — original inline layout wins.       ── */
+@media (max-width: 900px) {
+  /* No sidebar on mobile — Nav.tsx renders a top bar + hamburger drawer
+     instead. Push main content down below the fixed 56px top bar. */
+  .app-main {
+    margin-left: 0 !important;
+    padding-top: 56px !important;
+  }
+  .app-shell {
+    flex-direction: column !important;
+  }
+
+  /* Scorecard grid: reflow to as-many-140px-columns-as-fit and let each
+     tile fill its cell so the fixed 160px on BFScorecard doesn't
+     left-align them with dead space to the right. Gap bumped so tile
+     separation is clearly visible on small screens. */
+  .scorecard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    justify-items: stretch !important;
+    gap: 12px !important;
+  }
+  .scorecard-grid > * {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* Scorecard tiles always render with a visible separation — teal-on-teal
+   border was invisible after the brand-palette swap, so tiles appeared
+   joined. Give every tile a subtle white outline so gap gets emphasised
+   regardless of viewport. */
+.scorecard-grid > * {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+

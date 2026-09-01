@@ -3,24 +3,22 @@
 import {
   getGadsSummary, getGadsCampaigns, getGadsAdGroups, getGadsAds, getGadsKeywords,
   getGadsSearchTerms, getGadsTrend,
-  getGadsNetworkOptions, getGadsCampaignIdsForNetworks,
   getGadsConversionValue,
   getGadsCampaignProximity,
 } from '@/lib/queries/gads';
 import type { Totals, DailyRow, AgencyRow, TrendRow } from '../meta/actions';
+import { cached } from '@/lib/cache';
 
 // ─── Filters ────────────────────────────────────────────────────────────────
 
 export interface GadsFilters {
   campaigns: string[];
   adGroups:  string[];
-  networks:  string[];
 }
 
 export interface GadsFilterOptions {
   campaigns: string[];
   adGroups:  string[];
-  networks:  string[];
 }
 
 // ─── Entity row shape (extends Meta's EntityRow with Google Ads specifics) ─
@@ -55,19 +53,18 @@ export interface GadsDailyRow extends DailyRow {
 
 export async function getFilterOptions(startDate: string, endDate: string): Promise<GadsFilterOptions> {
   const range = { from: startDate, to: endDate };
-  const [camps, ags, nets] = await Promise.all([
+  const [camps, ags] = await Promise.all([
     getGadsCampaigns(range),
     getGadsAdGroups(range),
-    getGadsNetworkOptions(range),
   ]);
   const campaigns = [...new Set(camps.map(c => c.campaign_name).filter(Boolean))].sort();
   const adGroups  = [...new Set(ags  .map(a => a.ad_group_name).filter(Boolean))].sort();
-  return { campaigns, adGroups, networks: nets };
+  return { campaigns, adGroups };
 }
 
 // ─── Above-fold ────────────────────────────────────────────────────────────
 
-export async function fetchAboveFold(startDate: string, endDate: string, f: GadsFilters): Promise<{
+async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: GadsFilters): Promise<{
   totals:        Totals | null;
   daily:         GadsDailyRow[];
   fallback:      boolean;
@@ -77,19 +74,14 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Gads
   const range = { from: startDate, to: endDate };
   const hasCampaigns = (f.campaigns ?? []).length > 0;
   const hasAdGroups  = (f.adGroups  ?? []).length > 0;
-  const hasNetworks  = (f.networks  ?? []).length > 0;
-  const anyFilter    = hasCampaigns || hasAdGroups || hasNetworks;
-
-  // Network filter resolves to a campaign_id set — cascades into the ad-group
-  // and campaign filtering below.
-  const netCampIds = hasNetworks ? await getGadsCampaignIdsForNetworks(range, f.networks) : null;
+  const anyFilter    = hasCampaigns || hasAdGroups;
 
   // Conversion value from bronze.gads_campaign_stats — campaign-grain source
   // of truth for the value tile + daily + per-campaign columns.
   const convValue = await getGadsConversionValue(range);
 
   // Aggregate to totals. When any filter is active we walk down through the
-  // ad-group level (which carries campaign_id) so all three filter dimensions
+  // ad-group level (which carries campaign_id) so both filter dimensions
   // combine cleanly. With no filters we use getGadsSummary directly.
   let spend = 0, impressions = 0, clicks = 0, conversions = 0;
   if (!anyFilter) {
@@ -109,7 +101,6 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Gads
     let rows = ags;
     if (hasAdGroups)     rows = rows.filter(a => f.adGroups.includes(a.ad_group_name));
     if (hasCampaigns)    rows = rows.filter(a => selectedCampIds.has(a.campaign_id));
-    if (netCampIds)      rows = rows.filter(a => netCampIds.has(a.campaign_id));
     for (const r of rows) {
       spend       += r.spend;
       impressions += r.impressions;
@@ -125,21 +116,10 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Gads
   const conversionRate  = clicks      ? (conversions / clicks) * 100 : null;
 
   // Daily rows for sparklines + Daily Summary. Trend query returns per-day
-  // aggregates already; filter on the same campaign-id masks when needed.
+  // aggregates already; per-day filter scoping would need campaign-day
+  // aggregates that aren't in the current query. Match Meta's behaviour and
+  // return the full account-day trend even when filters are active.
   const rawTrend = await getGadsTrend(range);
-  let filteredCampIds: Set<string> | null = null;
-  if (anyFilter) {
-    const camps = await getGadsCampaigns(range);
-    const selectedCampNames = new Set(hasCampaigns ? f.campaigns : camps.map(c => c.campaign_name));
-    filteredCampIds = new Set(
-      camps.filter(c => (!hasCampaigns || selectedCampNames.has(c.campaign_name)) && (!netCampIds || netCampIds.has(c.campaign_id)))
-           .map(c => c.campaign_id),
-    );
-  }
-  // If ad-group filter is active, the daily trend can't be filtered without
-  // per-day-per-ad-group aggregates; fall back to campaign-scoped trend, which
-  // matches Meta's approach when ad-set/ad filters are active there.
-  void filteredCampIds; // reserved for future per-day filter scoping
   const daily: GadsDailyRow[] = rawTrend
     .map(r => ({
       date:                r.date,
@@ -250,13 +230,12 @@ export async function fetchEntityTables(startDate: string, endDate: string, f: G
   searchTerms: GadsEntityRow[];
 }> {
   const range = { from: startDate, to: endDate };
-  const [camps, ags, ads, kws, sts, netCampIds, convValue] = await Promise.all([
+  const [camps, ags, ads, kws, sts, convValue] = await Promise.all([
     getGadsCampaigns(range),
     getGadsAdGroups(range),
     getGadsAds(range),
     getGadsKeywords(range),
     getGadsSearchTerms(range),
-    (f.networks?.length ?? 0) > 0 ? getGadsCampaignIdsForNetworks(range, f.networks) : Promise.resolve(null as Set<string> | null),
     getGadsConversionValue(range),
   ]);
 
@@ -272,7 +251,6 @@ export async function fetchEntityTables(startDate: string, endDate: string, f: G
 
   const passCamp = (campaign_id: string) => {
     if (hasCampaigns && !selCampIds.has(campaign_id)) return false;
-    if (netCampIds && !netCampIds.has(campaign_id)) return false;
     return true;
   };
   const passAdGroup = (ad_group_id: string, campaign_id: string) => {
@@ -368,4 +346,10 @@ export async function fetchEntityTables(startDate: string, endDate: string, f: G
     }));
 
   return { campaigns, adGroups, ads: adRows, keywords, searchTerms };
+}
+
+// ─── Cached wrapper (1hr TTL — data refreshes daily via 14:00 UTC cron) ────
+const _fetchAboveFoldCached = cached(_fetchAboveFoldImpl, 'gads-above-fold');
+export async function fetchAboveFold(startDate: string, endDate: string, f: GadsFilters) {
+  return _fetchAboveFoldCached(startDate, endDate, f);
 }

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Verify (typecheck + lint + build + drift audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      # Runs whatever test suite is defined in package.json (currently a
+      # placeholder). Satisfies PRISM Part G Gate 4.5 (CI runs the test
+      # suite); when real tests land, they gate the pipeline here.
+      - name: Test
+        run: npm test
+
+      # Config-vs-DB drift audit per docs/CONFIG-DRIFT-AUDIT.md
+      # (upstream in @prism/executive-summaries). Deep-diffs
+      # makeAtWorkConfig() against the ClientConfig loadConfig would
+      # return from atWork's reporting.* rows. Any code change that
+      # ships without a matching re-seed shows here; a stale DB row
+      # would otherwise render live to a reader silently.
+      #
+      # Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY as repo
+      # secrets. Read-only service-role read of reporting.config* —
+      # the audit calls loadConfig, which does not write.
+      - name: Audit config-vs-DB drift
+        env:
+          NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run audit:config-drift

@@ -209,7 +209,7 @@ function Checkbox({ checked }: { checked: boolean }) {
       width:           14,
       height:          14,
       border:          `2px solid ${checked ? colors.brand.primary : colors.border.strong}`,
-      borderRadius:    3,
+      borderRadius: 0,
       backgroundColor: checked ? colors.brand.primary : 'transparent',
       flexShrink:      0,
       display:         'inline-flex',

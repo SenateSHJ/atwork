@@ -10,8 +10,8 @@ interface DateRangePickerProps {
 
 // atWork brand accent (was BFT teal). Constant name kept so the rest of the
 // BFT-cloned styling continues to reference a single value.
-const TEAL = '#E8752A';        // colors.brand.primary
-const TEAL_HOVER = '#C15E1F';  // colors.brand.primaryDark
+const TEAL = '#ccd404';        // colors.brand.primary — yellow button
+const TEAL_HOVER = '#a3a903';  // colors.brand.primaryDark
 
 function toIso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -127,7 +127,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
           height: '36.5px',
           padding: '0 12px',
           border: `1px solid #D1D5DB`,
-          borderRadius: 4,
+          borderRadius: 0,
           backgroundColor: '#fff',
           fontSize: '0.875rem',
           color: '#111',
@@ -153,7 +153,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
           marginTop: 4,
           backgroundColor: '#fff',
           border: '1px solid #D1D5DB',
-          borderRadius: 6,
+          borderRadius: 0,
           boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
           zIndex: 1000,
           width: 360,
@@ -176,9 +176,9 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
                   fontSize: '0.75rem',
                   fontWeight: 500,
                   backgroundColor: hoveredPreset === label ? TEAL_HOVER : TEAL,
-                  color: '#fff',
+                  color: '#013E51',
                   border: 'none',
-                  borderRadius: 4,
+                  borderRadius: 0,
                   cursor: 'pointer',
                   transition: 'background-color 0.15s',
                 }}
@@ -200,7 +200,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
               <span style={{ display: 'block', fontSize: '0.7rem', color: '#888', marginBottom: 3 }}>Start Date</span>
               <div
                 onClick={() => startInputRef.current?.showPicker()}
-                style={{ cursor: 'pointer', width: '100%', height: '34px', border: '1px solid #D1D5DB', borderRadius: 4, boxSizing: 'border-box', display: 'flex', alignItems: 'center', overflow: 'hidden' }}
+                style={{ cursor: 'pointer', width: '100%', height: '34px', border: '1px solid #D1D5DB', borderRadius: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center', overflow: 'hidden' }}
               >
                 <input
                   ref={startInputRef}
@@ -215,7 +215,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
               <span style={{ display: 'block', fontSize: '0.7rem', color: '#888', marginBottom: 3 }}>End Date</span>
               <div
                 onClick={() => endInputRef.current?.showPicker()}
-                style={{ cursor: 'pointer', width: '100%', height: '34px', border: '1px solid #D1D5DB', borderRadius: 4, boxSizing: 'border-box', display: 'flex', alignItems: 'center', overflow: 'hidden' }}
+                style={{ cursor: 'pointer', width: '100%', height: '34px', border: '1px solid #D1D5DB', borderRadius: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center', overflow: 'hidden' }}
               >
                 <input
                   ref={endInputRef}
@@ -239,7 +239,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
                 backgroundColor: '#fff',
                 color: '#333',
                 border: '1px solid #D1D5DB',
-                borderRadius: 4,
+                borderRadius: 0,
                 cursor: 'pointer',
               }}
             >
@@ -254,7 +254,7 @@ export function DateRangePicker({ startDate, endDate, onChange }: DateRangePicke
                 backgroundColor: TEAL,
                 color: '#fff',
                 border: 'none',
-                borderRadius: 4,
+                borderRadius: 0,
                 cursor: 'pointer',
               }}
             >

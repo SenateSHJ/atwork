@@ -34,7 +34,9 @@ export interface DSTColumn {
   label:    string;
   align?:   'left' | 'right';
   numeric?: boolean;
-  render?:  (row: Record<string, unknown>) => string;
+  // Widened to ReactNode so columns can render richer content (iframes, links,
+  // badges). String returns still work — React coerces primitives to text nodes.
+  render?:  (row: Record<string, unknown>) => React.ReactNode;
 }
 
 interface DailySummaryTableProps {
@@ -57,8 +59,9 @@ const th: React.CSSProperties = {
   padding: `10px ${spacing.sm}`,
   fontSize: typography.fontSize.sm,
   fontWeight: typography.fontWeight.semibold,
-  color: colors.text.secondary,
-  borderBottom: `1px solid ${colors.border.default}`,
+  color: colors.text.inverse,               // white on teal
+  backgroundColor: colors.ui.teal,          // atWork brand teal
+  borderBottom: `1px solid ${colors.ui.teal}`,
   whiteSpace: 'nowrap',
 };
 
@@ -127,18 +130,27 @@ export function DailySummaryTable({
     //     text; hover shows full value via the title attribute
     //   - the outer wrapper allows horizontal scroll if a table ever grows
     //     wider than its container (dormant on current data)
-    const DIM_MAX_WIDTH = 260;
+    // Dimension cells now wrap so long text stays visible instead of being
+    // ellipsis-cut. Cap width so a single very long value can't blow out
+    // the whole column. verticalAlign top keeps multi-line rows aligned to
+    // the header baseline when neighbouring cells are single-line.
+    const DIM_MAX_WIDTH = 320;
     const dimCell: React.CSSProperties = {
       maxWidth: DIM_MAX_WIDTH,
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
+      whiteSpace: 'normal',
+      wordBreak: 'break-word',
+      verticalAlign: 'top',
     };
 
     // Extract full text of a cell for the hover title attribute — used on
     // dimension cells that may ellipsis-truncate.
-    const cellText = (c: DSTColumn, row: Record<string, unknown>): string =>
+    const cellContent = (c: DSTColumn, row: Record<string, unknown>): React.ReactNode =>
       c.render ? c.render(row) : String(row[c.key] ?? '');
+    // For title tooltips / sort keys we still want a string form.
+    const cellText = (c: DSTColumn, row: Record<string, unknown>): string => {
+      const val = c.render ? c.render(row) : row[c.key];
+      return typeof val === 'string' || typeof val === 'number' ? String(val) : '';
+    };
 
     return (
       <div>
@@ -157,7 +169,8 @@ export function DailySummaryTable({
                         textAlign: c.align ?? (c.numeric ? 'right' : 'left'),
                         cursor: sortable ? 'pointer' : undefined,
                         userSelect: sortable ? 'none' : undefined,
-                        color: isSorted ? colors.text.primary : colors.text.secondary,
+                        // Header text is white on teal; sort arrow just gets full opacity.
+                        opacity: isSorted ? 1 : 0.85,
                       }}
                       onClick={() => handleHeaderClick(c.key)}
                     >
@@ -171,18 +184,19 @@ export function DailySummaryTable({
               {visibleGenericRows.map((row, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 1 ? colors.table.rowAlt : 'transparent' }}>
                   {columns.map(c => {
-                    const value = cellText(c, row);
+                    const content    = cellContent(c, row);
+                    const titleAttr  = cellText(c, row);
                     return (
                       <td
                         key={c.key}
-                        title={!c.numeric ? value : undefined}
+                        title={!c.numeric && titleAttr ? titleAttr : undefined}
                         style={{
                           ...td,
                           ...(c.numeric ? {} : dimCell),
                           textAlign: c.align ?? (c.numeric ? 'right' : 'left'),
                         }}
                       >
-                        {value}
+                        {content}
                       </td>
                     );
                   })}
@@ -217,7 +231,7 @@ export function DailySummaryTable({
                 backgroundColor: colors.ui.teal,
                 color: '#ffffff',
                 border: 'none',
-                borderRadius: 4,
+                borderRadius: 0,
                 padding: '8px 20px',
                 fontWeight: typography.fontWeight.semibold,
                 cursor: 'pointer',
@@ -321,7 +335,7 @@ export function DailySummaryTable({
               backgroundColor: colors.ui.teal,
               color: '#ffffff',
               border: 'none',
-              borderRadius: 4,
+              borderRadius: 0,
               padding: '8px 20px',
               fontWeight: typography.fontWeight.semibold,
               cursor: 'pointer',

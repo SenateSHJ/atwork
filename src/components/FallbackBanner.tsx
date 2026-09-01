@@ -34,7 +34,7 @@ export function FallbackBanner({ active, dismissed, onDismiss }: FallbackBannerP
         justifyContent:  'space-between',
         backgroundColor: colors.status.warningFaint,
         border:          `1px solid ${colors.status.warning}`,
-        borderRadius:    4,
+        borderRadius: 0,
         padding:         `${spacing.sm} ${spacing.md}`,
         marginBottom:    spacing.md,
       }}

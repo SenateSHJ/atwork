@@ -196,32 +196,6 @@ export async function getGadsTrend(range: DateRange) {
     .map(d => ({ ...d, ...derive(d) }))
 }
 
-// ─── Network filter (ad_network_type is bronze-only, read directly) ────────
-
-export async function getGadsNetworkOptions(range: DateRange): Promise<string[]> {
-  const sb = supabaseServer()
-  const { data } = await sb.schema('bronze').from('gads_campaign_stats')
-    .select('ad_network_type')
-    .gte('date', range.from).lte('date', range.to)
-  const set = new Set<string>()
-  for (const r of (data ?? []) as { ad_network_type: string | null }[]) {
-    if (r.ad_network_type) set.add(r.ad_network_type)
-  }
-  return [...set].sort()
-}
-
-export async function getGadsCampaignIdsForNetworks(range: DateRange, networks: string[]): Promise<Set<string>> {
-  if (!networks.length) return new Set()
-  const sb = supabaseServer()
-  const { data } = await sb.schema('bronze').from('gads_campaign_stats')
-    .select('campaign_id')
-    .gte('date', range.from).lte('date', range.to)
-    .in('ad_network_type', networks)
-  const set = new Set<string>()
-  for (const r of (data ?? []) as { campaign_id: string }[]) set.add(r.campaign_id)
-  return set
-}
-
 // ─── Campaign proximity (radius rings per campaign) ────────────────────────
 
 export async function getGadsCampaignProximity() {

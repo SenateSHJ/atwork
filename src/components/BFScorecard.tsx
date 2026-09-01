@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import {
   ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
-import { colors, typography, borderRadius } from '../tokens';
+import { colors, typography, borderRadius, shadow } from '../tokens';
 
 interface BFScorecardProps {
   title:         string;
@@ -12,6 +12,15 @@ interface BFScorecardProps {
   sparklineData?: number[];
   color?:        'blue' | 'grey';
   size?:         'small' | 'normal';
+  // Period-over-period delta rendered as "▲ 12.3%" between value and
+  // sparkline. `pct` null = no baseline to compare against (prior = 0).
+  // `goodDirection` picks the semantic color: matching direction → green,
+  // opposite → red, null → neutral (used for metrics like Spend where
+  // direction of change isn't inherently good or bad).
+  delta?: {
+    pct:           number | null;
+    goodDirection: 'up' | 'down' | null;
+  };
 }
 
 export function BFScorecard({
@@ -20,6 +29,7 @@ export function BFScorecard({
   sparklineData,
   color,
   size = 'normal',
+  delta,
 }: BFScorecardProps) {
   const bg    = color === 'blue' ? colors.ui.teal : color === 'grey' ? '#6B7280' : colors.ui.black;
   const w     = size === 'small' ? 160 : 220;
@@ -41,6 +51,7 @@ export function BFScorecard({
         backgroundColor: bg,
         border: `2px solid ${colors.ui.black}`,
         borderRadius: borderRadius.md,
+        boxShadow: shadow.md,
         padding: size === 'small' ? '12px' : '16px',
         width: w,
         height: h,
@@ -77,20 +88,27 @@ export function BFScorecard({
         >
           {value}
         </span>
-        {value.startsWith('$') ? (
-          <span
-            style={{
-              color: 'rgba(255,255,255,0.8)',
-              fontSize: size === 'small' ? '0.6rem' : '0.7rem',
-              textAlign: 'center',
-              display: 'block',
-            }}
-          >
-            AUD
-          </span>
-        ) : (
-          <div style={{ height: size === 'small' ? '0.8rem' : '1rem' }} />
-        )}
+        {(() => {
+          // Delta line — takes the AUD slot's vertical space so card
+          // rhythm stays consistent whether or not a delta is present.
+          const fs = size === 'small' ? '0.65rem' : '0.75rem';
+          if (!delta || delta.pct == null) {
+            return <div style={{ height: size === 'small' ? '0.8rem' : '1rem' }} />;
+          }
+          const p = delta.pct;
+          const arrow = p > 0 ? '▲' : p < 0 ? '▼' : '●';
+          const abs   = Math.abs(p).toFixed(1);
+          let color = 'rgba(255,255,255,0.75)';
+          if (delta.goodDirection && p !== 0) {
+            const isGood = (delta.goodDirection === 'up' && p > 0) || (delta.goodDirection === 'down' && p < 0);
+            color = isGood ? '#86efac' : '#fca5a5';
+          }
+          return (
+            <span style={{ color, fontSize: fs, fontWeight: typography.fontWeight.semibold, textAlign: 'center', display: 'block', fontVariantNumeric: 'tabular-nums' }}>
+              {arrow} {abs}%
+            </span>
+          );
+        })()}
       </div>
 
       {sparklineData ? (

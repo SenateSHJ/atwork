@@ -6,6 +6,7 @@ import {
 } from '@/lib/queries/meta';
 import { getGa4Trend } from '@/lib/queries/ga4';
 import { supabaseServer } from '@/lib/supabase/server';
+import { cached } from '@/lib/cache';
 
 // ─── BFT-shaped response types (kept for compatibility with the page shell) ─
 
@@ -158,7 +159,7 @@ function aggregate(rows: AggRow[]) {
 
 // ─── Above-fold fetch (filter-aware) ───────────────────────────────────────
 
-export async function fetchAboveFold(startDate: string, endDate: string, f: MetaFilters): Promise<{
+async function _fetchAboveFoldImpl(startDate: string, endDate: string, f: MetaFilters): Promise<{
   totals:        Totals | null;
   daily:         DailyRow[];
   fallback:      boolean;
@@ -256,7 +257,7 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Meta
   // narrowed by whichever cascading filter is active. Same filter mask as
   // the entity tables so the top-of-page total agrees with per-entity sums.
   const convQuery = sb.schema('silver').from('meta_ad_conversion_insights')
-    .select('date,campaign_id,adset_id,ad_id,contact_website,video_view')
+    .select('date,campaign_id,adset_id,ad_id,lead,video_view')
     .gte('date', startDate).lte('date', endDate);
   const { data: convRows } = await convQuery;
   let convFiltered = convRows ?? [];
@@ -284,9 +285,9 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Meta
     const passingCampIds = new Set(passingCamps.map(c => c.campaign_id));
     convFiltered = convFiltered.filter(r => passingCampIds.has((r as { campaign_id: string }).campaign_id));
   }
-  type ConvRow = { date: string; contact_website: number | null; video_view: number | null };
+  type ConvRow = { date: string; lead: number | null; video_view: number | null };
   const conversions = convFiltered.reduce(
-    (s, r) => s + Number((r as ConvRow).contact_website || 0), 0,
+    (s, r) => s + Number((r as ConvRow).lead || 0), 0,
   );
   const videoViews = convFiltered.reduce(
     (s, r) => s + Number((r as ConvRow).video_view || 0), 0,
@@ -297,7 +298,7 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Meta
   const convByDate  = new Map<string, number>();
   const videoByDate = new Map<string, number>();
   for (const r of convFiltered as ConvRow[]) {
-    const cw = Number(r.contact_website || 0);
+    const cw = Number(r.lead || 0);
     const vv = Number(r.video_view      || 0);
     if (cw) convByDate.set (r.date, (convByDate.get (r.date) ?? 0) + cw);
     if (vv) videoByDate.set(r.date, (videoByDate.get(r.date) ?? 0) + vv);
@@ -342,7 +343,7 @@ export async function fetchAboveFold(startDate: string, endDate: string, f: Meta
 
 // ─── Below-fold (unchanged — atWork has no studios/agencies/trends set) ────
 
-export async function fetchBelowFold(startDate: string, endDate: string, _filters: MetaFilters): Promise<{
+async function _fetchBelowFoldImpl(startDate: string, endDate: string, _filters: MetaFilters): Promise<{
   trends: TrendRow[];
 }> {
   // MetricTrendsChart source — CPL fields stay null (no lead-attribution
@@ -382,11 +383,19 @@ export interface EntityRow {
   name:                string;
   media_type?:         string | null;
   objective?:          string | null;   // Campaigns table only
+  // Creative preview + copy — Ads table only (via silver.meta_ads_with_creative).
+  // preview_url + preview_kind are CASE-WHEN computed in the silver view so
+  // the client render is one <img> tag + one badge, no fallback logic.
+  preview_url?:        string | null;
+  preview_kind?:       string | null;   // 'VIDEO' | 'IMAGE' | 'TEXT' | 'OTHER'
+  creative_title?:     string | null;
+  creative_body?:      string | null;
+  call_to_action_type?: string | null;
   spend:               number;
   impressions:         number;
   clicks:              number;
   reach:               number;
-  conversions:         number;          // Meta-attributed website contact events (contact_website)
+  conversions:         number;          // Meta-attributed lead events (Meta pixel `lead` action_type)
   cost_per_conversion: number | null;
   video_views:         number;          // silver.meta_ad_conversion_insights.video_view
   ctr:                 number | null;
@@ -394,7 +403,7 @@ export interface EntityRow {
   cpm:                 number | null;
 }
 
-export async function fetchEntityTables(startDate: string, endDate: string, f: MetaFilters): Promise<{
+async function _fetchEntityTablesImpl(startDate: string, endDate: string, f: MetaFilters): Promise<{
   campaigns: EntityRow[];
   adsets:    EntityRow[];
   ads:       EntityRow[];
@@ -406,7 +415,7 @@ export async function fetchEntityTables(startDate: string, endDate: string, f: M
     getMetaAdsets(range),
     getMetaAdsCreative(range),
     sb.schema('silver').from('meta_ad_conversion_insights')
-      .select('campaign_id,adset_id,ad_id,contact_website,video_view')
+      .select('campaign_id,adset_id,ad_id,lead,video_view')
       .gte('date', startDate).lte('date', endDate),
     sb.schema('silver').from('meta_campaign').select('campaign_id,objective'),
   ]);
@@ -447,9 +456,9 @@ export async function fetchEntityTables(startDate: string, endDate: string, f: M
   const videoByCamp  = new Map<string, number>();
   const videoByAdset = new Map<string, number>();
   const videoByAd    = new Map<string, number>();
-  type ConvRow = { campaign_id: string; adset_id: string; ad_id: string; contact_website: number | null; video_view: number | null };
+  type ConvRow = { campaign_id: string; adset_id: string; ad_id: string; lead: number | null; video_view: number | null };
   for (const r of (convData.data ?? []) as ConvRow[]) {
-    const cw = Number(r.contact_website || 0);
+    const cw = Number(r.lead || 0);
     const vv = Number(r.video_view      || 0);
     if (cw) {
       convByCamp.set (r.campaign_id, (convByCamp.get (r.campaign_id) ?? 0) + cw);
@@ -534,6 +543,11 @@ export async function fetchEntityTables(startDate: string, endDate: string, f: M
       return {
         name:                a.ad_name ?? '(unnamed)',
         media_type:          a.media_type ?? null,
+        preview_url:         a.preview_url ?? null,
+        preview_kind:        a.preview_kind ?? null,
+        creative_title:      a.creative_title ?? null,
+        creative_body:       a.creative_body ?? null,
+        call_to_action_type: a.call_to_action_type ?? null,
         spend:               a.spend,
         impressions:         a.impressions,
         clicks:              a.clicks,
@@ -563,7 +577,7 @@ export interface EngagementRow {
   landing_page_view: number;
 }
 
-export async function fetchEngagement(startDate: string, endDate: string, f: MetaFilters): Promise<EngagementRow[]> {
+async function _fetchEngagementImpl(startDate: string, endDate: string, f: MetaFilters): Promise<EngagementRow[]> {
   const range = { from: startDate, to: endDate };
   const sb = supabaseServer();
   const [rows, ads, campDim] = await Promise.all([
@@ -641,7 +655,7 @@ export interface VideoWatchResult {
 }
 
 // Account-level (source has no ad_id — see migration comment on silver.meta_video_watch).
-export async function fetchVideoWatch(startDate: string, endDate: string): Promise<VideoWatchResult> {
+async function _fetchVideoWatchImpl(startDate: string, endDate: string): Promise<VideoWatchResult> {
   const sb = supabaseServer();
   // videoViews is surfaced standalone above the funnel (different Meta
   // definition — 3-sec+ plays vs. 25%-of-duration). Funnel percentages are
@@ -679,6 +693,48 @@ export async function fetchVideoWatch(startDate: string, endDate: string): Promi
   };
 }
 
+// ─── Device + Placement breakdowns (account-level) ─────────────────────────
+export interface BreakdownRow {
+  name:        string;
+  impressions: number;
+  clicks:      number;
+  spend:       number;
+}
+export interface DevicesResult {
+  devices:    BreakdownRow[];
+  placements: BreakdownRow[];
+}
+async function _fetchDevicesImpl(startDate: string, endDate: string): Promise<DevicesResult> {
+  const sb = supabaseServer();
+  const [dev, plc] = await Promise.all([
+    sb.schema('silver').from('meta_devices')
+      .select('device_platform,impressions,clicks,spend')
+      .gte('date', startDate).lte('date', endDate),
+    sb.schema('silver').from('meta_placements')
+      .select('publisher_platform,impressions,clicks,spend')
+      .gte('date', startDate).lte('date', endDate),
+  ]);
+  type DevRow = { device_platform:    string; impressions: number | null; clicks: number | null; spend: number | null };
+  type PlcRow = { publisher_platform: string; impressions: number | null; clicks: number | null; spend: number | null };
+  const rollup = <K extends string>(rows: unknown[], keyField: K): BreakdownRow[] => {
+    const acc = new Map<string, BreakdownRow>();
+    for (const raw of rows) {
+      const r = raw as Record<K, string> & { impressions: number | null; clicks: number | null; spend: number | null };
+      const name = r[keyField] ?? '(unknown)';
+      const cur = acc.get(name) ?? { name, impressions: 0, clicks: 0, spend: 0 };
+      cur.impressions += Number(r.impressions || 0);
+      cur.clicks      += Number(r.clicks      || 0);
+      cur.spend       += Number(r.spend       || 0);
+      acc.set(name, cur);
+    }
+    return [...acc.values()].sort((a, b) => b.impressions - a.impressions);
+  };
+  return {
+    devices:    rollup((dev.data ?? []) as DevRow[], 'device_platform'),
+    placements: rollup((plc.data ?? []) as PlcRow[], 'publisher_platform'),
+  };
+}
+
 export interface TargetingRow {
   adset_id:                          string;
   adset_name:                        string;
@@ -696,7 +752,7 @@ export interface TargetingRow {
   ctr:                               number | null;
 }
 
-export async function fetchTargeting(startDate: string, endDate: string, f: MetaFilters): Promise<TargetingRow[]> {
+async function _fetchTargetingImpl(startDate: string, endDate: string, f: MetaFilters): Promise<TargetingRow[]> {
   const range = { from: startDate, to: endDate };
   const sb = supabaseServer();
   const [dim, perf, campDim] = await Promise.all([
@@ -767,4 +823,79 @@ export async function fetchTargeting(startDate: string, endDate: string, f: Meta
     });
   }
   return rows.sort((a, b) => b.spend - a.spend);
+}
+
+// ─── Day-of-week performance (Mon..Sun rollup) ────────────────────────────
+export interface DayOfWeekRow {
+  weekday:     string;
+  weekday_idx: number;
+  spend:       number;
+  impressions: number;
+  clicks:      number;
+  ctr:         number | null;
+}
+async function _fetchDayOfWeekImpl(startDate: string, endDate: string): Promise<DayOfWeekRow[]> {
+  const sb = supabaseServer();
+  const { data } = await sb.schema('bronze').from('meta_campaign_insight')
+    .select('date,spend,impressions,clicks')
+    .gte('date', startDate).lte('date', endDate);
+  type Row = { date: string; spend: number | null; impressions: number | null; clicks: number | null };
+  const buckets = new Map<number, { spend: number; impressions: number; clicks: number }>();
+  for (const raw of (data ?? []) as Row[]) {
+    const d = new Date(String(raw.date).slice(0, 10) + 'T00:00:00Z');
+    const js = d.getUTCDay();
+    const idx = js === 0 ? 7 : js;
+    const cur = buckets.get(idx) ?? { spend: 0, impressions: 0, clicks: 0 };
+    cur.spend       += Number(raw.spend       || 0);
+    cur.impressions += Number(raw.impressions || 0);
+    cur.clicks      += Number(raw.clicks      || 0);
+    buckets.set(idx, cur);
+  }
+  const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const result: DayOfWeekRow[] = [];
+  for (let i = 1; i <= 7; i++) {
+    const b = buckets.get(i) ?? { spend: 0, impressions: 0, clicks: 0 };
+    result.push({
+      weekday: labels[i], weekday_idx: i,
+      spend: b.spend, impressions: b.impressions, clicks: b.clicks,
+      ctr: b.impressions ? (b.clicks / b.impressions) * 100 : null,
+    });
+  }
+  return result;
+}
+
+// ─── Cached wrappers (1hr TTL — data refreshes daily via 14:00 UTC cron) ────
+
+const _fetchAboveFoldCached    = cached(_fetchAboveFoldImpl,    'meta-above-fold');
+const _fetchEntityTablesCached = cached(_fetchEntityTablesImpl, 'meta-entity-tables');
+const _fetchBelowFoldCached    = cached(_fetchBelowFoldImpl,    'meta-below-fold');
+const _fetchEngagementCached   = cached(_fetchEngagementImpl,   'meta-engagement');
+const _fetchVideoWatchCached   = cached(_fetchVideoWatchImpl,   'meta-video-watch');
+const _fetchDevicesCached      = cached(_fetchDevicesImpl,      'meta-devices');
+const _fetchTargetingCached    = cached(_fetchTargetingImpl,    'meta-targeting');
+const _fetchDayOfWeekCached    = cached(_fetchDayOfWeekImpl,    'meta-dow');
+
+export async function fetchAboveFold(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchAboveFoldCached(startDate, endDate, f);
+}
+export async function fetchEntityTables(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchEntityTablesCached(startDate, endDate, f);
+}
+export async function fetchBelowFold(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchBelowFoldCached(startDate, endDate, f);
+}
+export async function fetchEngagement(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchEngagementCached(startDate, endDate, f);
+}
+export async function fetchVideoWatch(startDate: string, endDate: string) {
+  return _fetchVideoWatchCached(startDate, endDate);
+}
+export async function fetchDevices(startDate: string, endDate: string) {
+  return _fetchDevicesCached(startDate, endDate);
+}
+export async function fetchTargeting(startDate: string, endDate: string, f: MetaFilters) {
+  return _fetchTargetingCached(startDate, endDate, f);
+}
+export async function fetchDayOfWeek(startDate: string, endDate: string) {
+  return _fetchDayOfWeekCached(startDate, endDate);
 }

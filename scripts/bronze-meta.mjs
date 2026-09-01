@@ -6,8 +6,9 @@ import { execSync } from 'child_process'
 import { createClient } from '@supabase/supabase-js'
 import WebSocket from 'ws'
 
-const PROJECT = 'thermal-effort-460301-m7'
-const DATASET = 'facebook_ads'
+const PROJECT = process.env.GCP_PROJECT_ID
+const DATASET = 'atWork_Facebook_ads'
+if (!PROJECT) throw new Error('GCP_PROJECT_ID env var required (source .envrc)')
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -27,10 +28,30 @@ const emptyReads = []
 
 function bq(sql, label) {
   // maxBuffer default is 1MB — actions/insights tables can exceed that
-  const result = execSync(
-    `bq query --nouse_legacy_sql --project_id=${PROJECT} --format=json --max_rows=100000 '${sql.replace(/'/g, "'\\''")}'`,
-    { encoding: 'utf8', maxBuffer: 200 * 1024 * 1024, env: { ...process.env, CLOUDSDK_CONFIG: process.env.CLOUDSDK_CONFIG } }
-  )
+  let result
+  try {
+    result = execSync(
+      `bq query --nouse_legacy_sql --project_id=${PROJECT} --format=json --max_rows=100000 '${sql.replace(/'/g, "'\\''")}'`,
+      { encoding: 'utf8', maxBuffer: 200 * 1024 * 1024, env: { ...process.env, CLOUDSDK_CONFIG: process.env.CLOUDSDK_CONFIG } }
+    )
+  } catch (e) {
+    // Table-not-found means Weld hasn't synced this source yet — skip gracefully.
+    const stdout = String(e.stdout ?? '') + String(e.stderr ?? '')
+    if (/Not found: Table/i.test(stdout)) {
+      console.warn(`  ⚠ ${label ?? 'query'}: source table not in BQ (Weld stream not enabled?)`)
+      if (label) emptyReads.push(label)
+      return []
+    }
+    // Column mismatch — atWork's Weld schema differs from Coolum scaffold assumption.
+    // Log and skip so the rest of the ingest can complete.
+    const colMatch = stdout.match(/Unrecognized name:\s+(\w+)/i)
+    if (colMatch) {
+      console.warn(`  ⚠ ${label ?? 'query'}: column "${colMatch[1]}" not in atWork BQ schema (Weld field not populated) — skipping`)
+      if (label) emptyReads.push(label)
+      return []
+    }
+    throw e
+  }
   const rows = JSON.parse(result)
   if (label && rows.length === 0) {
     console.warn(`  ⚠ ${label}: 0 rows from BQ (Weld sync gap?)`)
@@ -232,8 +253,14 @@ console.log(`  ✓ ${nAdDim} ad dimension rows upserted`)
 console.log('Fetching creative...')
 const creatives = bq(`
   SELECT id, account_id, name, object_type, video_id, image_hash, image_url,
-    thumbnail_url, title, body, call_to_action_type, link_url,
+    thumbnail_url,
+    -- Multi-resolution video posters — Weld stores as JSON string of URLs.
+    -- Client picks first (largest, ~160x160). Better than the 64px thumbnail_url
+    -- for video-format ads which have no image_url.
+    video_thumbnail_array,
+    title, body, call_to_action_type, link_url,
     effective_object_story_id,
+    effective_instagram_media_id,
     _weld_synced AS bq_synced
   FROM \`${PROJECT}.${DATASET}.creative\`
 `, 'creative')
@@ -247,12 +274,14 @@ const nCreatives = await upsert('meta_creative', creatives.map(r => ({
   image_hash:                r.image_hash,
   image_url:                 r.image_url,
   thumbnail_url:             r.thumbnail_url,
+  video_thumbnail_array:     r.video_thumbnail_array,
   title:                     r.title,
   body:                      r.body,
   call_to_action_type:       r.call_to_action_type,
   link_url:                  r.link_url,
-  effective_object_story_id: r.effective_object_story_id,
-  bq_synced:                 r.bq_synced || null,
+  effective_object_story_id:    r.effective_object_story_id,
+  effective_instagram_media_id: r.effective_instagram_media_id,
+  bq_synced:                    r.bq_synced || null,
 })), 'creative_id')
 console.log(`  ✓ ${nCreatives} creative rows upserted`)
 
@@ -623,6 +652,50 @@ for (const suffix of VIDEO_METRIC_SUFFIXES) {
     bq_synced:         r.bq_synced || null,
   })), 'date,action_type,action_video_type')
   console.log(`  ✓ ${nRows} ${suffix} rows upserted`)
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  Device + Placement breakdowns (account-level, one row per date × dim)
+// ══════════════════════════════════════════════════════════════════════════
+
+for (const [bqTable, bronzeTable, dimCol] of [
+  ['demographics_delivery_device',   'meta_device',    'device_platform'],
+  ['demographics_delivery_platform', 'meta_placement', 'publisher_platform'],
+]) {
+  console.log(`Fetching ${bqTable}...`)
+  const rows = bq(`
+    SELECT
+      CAST(date AS STRING) AS date,
+      ${dimCol},
+      CAST(impressions        AS INT64)   AS impressions,
+      CAST(clicks             AS INT64)   AS clicks,
+      CAST(spend              AS FLOAT64) AS spend,
+      CAST(reach              AS INT64)   AS reach,
+      CAST(frequency          AS FLOAT64) AS frequency,
+      CAST(inline_link_clicks AS INT64)   AS inline_link_clicks,
+      CAST(cpc                AS FLOAT64) AS cpc,
+      CAST(cpm                AS FLOAT64) AS cpm,
+      CAST(ctr                AS FLOAT64) AS ctr,
+      _weld_synced AS bq_synced
+    FROM \`${PROJECT}.${DATASET}.${bqTable}\`
+    WHERE date >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY))
+  `, bqTable)
+  console.log(`  ${rows.length} rows from BQ`)
+  const nRows = await upsert(bronzeTable, rows.map(r => ({
+    date:               toDate(r.date),
+    [dimCol]:           r[dimCol],
+    impressions:        n(r.impressions),
+    clicks:             n(r.clicks),
+    spend:              n(r.spend),
+    reach:              n(r.reach),
+    frequency:          n(r.frequency),
+    inline_link_clicks: n(r.inline_link_clicks),
+    cpc:                n(r.cpc),
+    cpm:                n(r.cpm),
+    ctr:                n(r.ctr),
+    bq_synced:          r.bq_synced || null,
+  })), `date,${dimCol}`)
+  console.log(`  ✓ ${nRows} ${bronzeTable} rows upserted`)
 }
 
 if (emptyReads.length > 0) {

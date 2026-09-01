@@ -34,7 +34,7 @@ export default async function InternalOverview() {
       </div>
 
       {/* Overall banner (mirrors BFT health OverallBanner pattern) */}
-      <div className={`flex items-center gap-4 p-5 border rounded-lg mb-5 ${banner.bg}`}>
+      <div className={`flex items-center gap-4 p-5 border rounded-none mb-5 ${banner.bg}`}>
         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${banner.iconBg}`}>
           {banner.icon}
         </div>
@@ -113,7 +113,7 @@ export default async function InternalOverview() {
           <Link
             key={link.href}
             href={link.href}
-            className="flex flex-col items-center gap-1 h-16 bg-gray-800 border border-gray-700 rounded-lg hover:border-gray-500 hover:bg-gray-700/50 transition-colors p-3 text-gray-400 hover:text-white"
+            className="flex flex-col items-center gap-1 h-16 bg-gray-800 border border-gray-700 rounded-none hover:border-gray-500 hover:bg-gray-700/50 transition-colors p-3 text-gray-400 hover:text-white"
           >
             <link.icon className="h-5 w-5" />
             <span className="text-xs">{link.label}</span>
