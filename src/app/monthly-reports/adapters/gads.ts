@@ -7,7 +7,16 @@ import type { DailyPoint, NormalisedPeriod, Entity } from '@prism/executive-summ
 import { atworkMonthLabel, monthBounds } from './config';
 import { computePeriodStats } from './helpers';
 
-const CHANNEL = { id: 'gads', display: 'Google Ads' };
+// channel.id MUST match reporting.config_channel.channel_id ('google-ads'
+// in atWork's seed) so PRISM's wording resolver can look up channel-scoped
+// config (outcome_model, locale, currency, conversion_definition) and the
+// A-slot rules render their anchor + anchor-deltas + outcome-definition
+// paragraphs. Prior value 'gads' silently dropped the anchor paragraph
+// with a WORDING_PLACEHOLDER_UNRESOLVABLE error — latent while bronze was
+// empty, surfaced 2026-09-01 after the new Google Ads Weld account was
+// swapped in and bronze populated for the first time. Display name stays
+// "Google Ads".
+const CHANNEL = { id: 'google-ads', display: 'Google Ads' };
 const CONVERSION_DEFINITION =
   'Google Ads native conversions, aggregated across all configured conversion actions in the account.';
 
