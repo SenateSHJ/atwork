@@ -477,11 +477,13 @@ export default function GoogleAdsPage() {
       </div>
 
       {/* Top Performers — client-side pick with per-metric noise floors so a
-          1-impression row can't take the top spot. Five highlights: two
-          campaign-grain (CTR / CPA) plus one each from ad-groups,
-          keywords, and search-terms — spreading across entities surfaces
-          insights the campaign-grain view alone misses. */}
-      {(entityCampaigns.length > 0 || entityAdGroups.length > 0 || entityKeywords.length > 0 || entitySearchTerms.length > 0) && (() => {
+          1-impression row can't take the top spot. Four highlights: two
+          campaign-grain (CTR / CPA) plus one ad-group and one keyword.
+          Top Search Term removed 2026-09-01 — search-term conversions
+          are effectively empty in this account so the tile sat at "—"
+          and consumed a full flex-wrapped row on its own. Restore if
+          search-term-level conversions start landing. */}
+      {(entityCampaigns.length > 0 || entityAdGroups.length > 0 || entityKeywords.length > 0) && (() => {
         // Campaign-grain
         const withImpr   = entityCampaigns.filter(c => c.impressions >= 500);
         const withConv   = entityCampaigns.filter(c => Number(c.conversions ?? 0) >= 3);
@@ -493,10 +495,6 @@ export default function GoogleAdsPage() {
         // Keyword-grain — cheapest CPC among keywords that actually got seen
         const kwImpr     = entityKeywords.filter(k => k.impressions >= 500 && k.cpc != null);
         const cheapestKw = kwImpr.slice().sort((a, b) => (a.cpc ?? Infinity) - (b.cpc ?? Infinity))[0];
-        // Search-term-grain — top by conversions (informs "add as keyword" or
-        // "negate" decisions depending on relevance).
-        const stConv     = entitySearchTerms.filter(s => Number(s.conversions ?? 0) >= 3);
-        const topStConv  = stConv.slice().sort((a, b) => Number(b.conversions ?? 0) - Number(a.conversions ?? 0))[0];
 
         // Best ROAS highlight removed 2026-09-01 alongside the ROAS /
         // Conversion Value / Value / Conversion scorecards: atWork's Google
@@ -509,7 +507,6 @@ export default function GoogleAdsPage() {
           { label: 'Best CPA — Campaign (3+ conv)',       value: bestCpa    ? `$${(bestCpa.cost_per_conversion ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`                     : '—', row: bestCpa },
           { label: 'Best Conv. Rate — Ad Group (100+ clk)', value: bestAgRate ? `${(bestAgRate.conversion_rate ?? 0).toFixed(2)}%`                       : '—', row: bestAgRate },
           { label: 'Cheapest CPC — Keyword (500+ impr)',  value: cheapestKw ? `$${(cheapestKw.cpc ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`                                  : '—', row: cheapestKw },
-          { label: 'Top Search Term (3+ conv)',           value: topStConv  ? `${fmtInt(Number(topStConv.conversions ?? 0))} conv`                    : '—', row: topStConv },
         ];
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
