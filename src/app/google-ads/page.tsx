@@ -69,7 +69,7 @@ function entityColumns(nameLabel: string, opts?: { withCampaign?: boolean; withA
     { key: 'cpm',                 label: 'CPM',             numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'cost_per_conversion', label: 'CPA',             numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'conversion_rate',     label: 'Conv. Rate',      numeric: true, render: r => r.conversion_rate == null ? '—' : `${Number(r.conversion_rate).toFixed(2)}%` },
-    { key: 'conversion_value',    label: 'Conv. Value',     numeric: true, render: r => `$${Number(r.conversion_value || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+    // Conv. Value column removed 2026-09-01 — see scorecard-grid comment.
   );
   return cols;
 }
@@ -86,7 +86,7 @@ const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'cpm',                 label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'cost_per_conversion', label: 'CPA',         numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'conversion_rate',     label: 'Conv. Rate',  numeric: true, render: r => r.conversion_rate == null ? '—' : `${Number(r.conversion_rate).toFixed(2)}%` },
-  { key: 'conversion_value',    label: 'Conv. Value', numeric: true, render: r => `$${Number(r.conversion_value || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+  // Conv. Value column removed 2026-09-01 — see scorecard-grid comment.
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ export default function GoogleAdsPage() {
   type TrendTab =
     | 'spend_clicks' | 'impressions'
     | 'ctr' | 'cpc' | 'cpm'
-    | 'conversions' | 'cpa' | 'conv_rate' | 'conv_value' | 'roas';
+    | 'conversions' | 'cpa' | 'conv_rate';
   const [trendTab, setTrendTab] = useState<TrendTab>('spend_clicks');
 
   useEffect(() => {
@@ -182,39 +182,11 @@ export default function GoogleAdsPage() {
 
   const t = summaryTotals;
 
-  // "No revenue tracked" detection. Google Ads defaults conversions_value
-  // to 1 per conversion when a conversion action has no monetary value
-  // configured (lead-gen accounts where conversions are events, not
-  // sales). BQ's conversions_value column then reads exactly equal to
-  // conversions, and any downstream ratio (Value per Conversion, ROAS)
-  // renders arithmetically as $1.00 or a meaningless single-digit
-  // percent — not zero-tracked, actively misleading.
-  //
-  // Detect the case by comparing the totals: when |value - count| is
-  // within a tight epsilon on a non-zero conversion base, treat as
-  // untracked and null-gate the value-based scorecards. Reader gets "—"
-  // instead of a fake $1.00 flatline. Surfaced 2026-09-01 on the atWork
-  // Google Ads account.
-  function noRevenueTracked(totals: Totals | null): boolean {
-    if (!totals) return true;
-    const cv = totals.conversion_value ?? 0;
-    const c  = totals.conversions      ?? 0;
-    return c > 0 && Math.abs(cv - c) < 0.01;
-  }
-  const currNoValue  = noRevenueTracked(t);
-  const priorNoValue = noRevenueTracked(priorTotals);
-
-  // ROAS = conversion_value / spend * 100. Google Ads convention: return
-  // as percentage (300% = $3 back per $1 spent). Skip when spend is 0
-  // OR when revenue isn't tracked at all.
-  const roas      = t?.spend_aud           && !currNoValue  ? ((t.conversion_value ?? 0) / t.spend_aud) * 100                       : null;
-  const priorRoas = priorTotals?.spend_aud && !priorNoValue ? ((priorTotals.conversion_value ?? 0) / priorTotals.spend_aud) * 100   : null;
-
-  // Value per Conversion = conversion_value / conversions. Complements
-  // CPA — CPA is cost side, this is revenue side, both per conversion.
-  // Same untracked-revenue gate.
-  const valuePerConv      = t?.conversions           && !currNoValue  ? (t.conversion_value ?? 0) / t.conversions                    : null;
-  const priorValuePerConv = priorTotals?.conversions && !priorNoValue ? (priorTotals.conversion_value ?? 0) / priorTotals.conversions : null;
+  // ROAS + Value per Conversion + Conversion Value removed 2026-09-01
+  // (see scorecard-grid comment). atWork's Google Ads conversion actions
+  // have no monetary value configured, so any ratio involving
+  // conversions_value degenerates. Restore when values are set in
+  // Google Ads Manager.
 
   const spark = useMemo(() => ({
     spend:       dailyRows.map(d => d.spend_aud            ?? 0),
@@ -226,9 +198,6 @@ export default function GoogleAdsPage() {
     cpm:         dailyRows.map(d => d.cpm                  ?? 0),
     cpa:         dailyRows.map(d => Number(d.cost_per_conversion ?? 0)),
     convRate:    dailyRows.map(d => d.conversion_rate      ?? 0),
-    convValue:   dailyRows.map(d => Number(d.conversion_value ?? 0)),
-    roas:        dailyRows.map(d => d.spend_aud ? ((Number(d.conversion_value ?? 0)) / d.spend_aud) * 100 : 0),
-    valuePerConv:dailyRows.map(d => (d.conversions ?? 0) ? Number(d.conversion_value ?? 0) / (d.conversions ?? 1) : 0),
   }), [dailyRows]);
 
   // Trend chart source — normalize dailyRows into the shape MetricTrendsChart
@@ -244,8 +213,6 @@ export default function GoogleAdsPage() {
     conversions:         Number(d.conversions ?? 0),
     cost_per_conversion: d.cost_per_conversion,
     conversion_rate:     d.conversion_rate,
-    conversion_value:    Number(d.conversion_value ?? 0),
-    roas:                d.spend_aud ? (Number(d.conversion_value ?? 0) / d.spend_aud) * 100 : null,
   })), [dailyRows]);
 
   // Day-of-Week aggregation — derive client-side from dailyRows. Google Ads
@@ -302,11 +269,10 @@ export default function GoogleAdsPage() {
   );
 
   const dailyTotals = useMemo(() => {
-    const spend       = dailyRows.reduce((s, r) => s + r.spend_aud,                    0);
-    const impressions = dailyRows.reduce((s, r) => s + r.impressions,                  0);
-    const clicks      = dailyRows.reduce((s, r) => s + r.clicks,                       0);
-    const conversions = dailyRows.reduce((s, r) => s + (r.conversions ?? 0),           0);
-    const convValue   = dailyRows.reduce((s, r) => s + Number(r.conversion_value ?? 0), 0);
+    const spend       = dailyRows.reduce((s, r) => s + r.spend_aud,          0);
+    const impressions = dailyRows.reduce((s, r) => s + r.impressions,        0);
+    const clicks      = dailyRows.reduce((s, r) => s + r.clicks,             0);
+    const conversions = dailyRows.reduce((s, r) => s + (r.conversions ?? 0), 0);
     return {
       date:                'Total',
       spend_aud:           spend,
@@ -318,7 +284,6 @@ export default function GoogleAdsPage() {
       cpm:                 impressions ? (spend / impressions) * 1000 : null,
       cost_per_conversion: conversions ? spend / conversions          : null,
       conversion_rate:     clicks      ? (conversions / clicks) * 100 : null,
-      conversion_value:    convValue,
     };
   }, [dailyRows]);
 
@@ -457,10 +422,17 @@ export default function GoogleAdsPage() {
         </div>
       )}
 
-      {/* ── Scorecards (12 tiles, 6x2 grid, deltas on every tile) ── */}
+      {/* ── Scorecards (9 tiles, 3-per-row grid, deltas on every tile) ──
+           Previously 12 tiles in a 6x2 grid. Conversion Value, Value /
+           Conversion, and ROAS removed 2026-09-01: atWork's Google Ads
+           conversion actions have no monetary value configured, so BQ's
+           conversions_value column reads exactly equal to conversions
+           and all three metrics degenerate to arithmetic-of-count. If
+           conversion values ever land in the account, restore the three
+           tiles + revert to 6x2. */}
       <div className="scorecard-grid" style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(6, ${card.gridCardMin})`,
+        gridTemplateColumns: `repeat(3, ${card.gridCardMin})`,
         gap: spacing.sm,
         justifyContent: 'center',
         marginBottom: spacing.xs,
@@ -474,9 +446,6 @@ export default function GoogleAdsPage() {
         <BFScorecard title="Conversions"         value={fmtInt(t?.conversions           ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" delta={{ pct: deltaPct(t?.conversions,         priorTotals?.conversions),         goodDirection: 'up'   }} />
         <BFScorecard title="Conversion Rate"     value={fmtCtr(t?.conversion_rate       ?? null)} sparklineData={spark.convRate}    color="blue" size="small" delta={{ pct: deltaPct(t?.conversion_rate,     priorTotals?.conversion_rate),     goodDirection: 'up'   }} />
         <BFScorecard title="Cost per Conversion" value={fmtMoney(t?.cost_per_conversion ?? null)} sparklineData={spark.cpa}         color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_conversion, priorTotals?.cost_per_conversion), goodDirection: 'down' }} />
-        <BFScorecard title="Conversion Value"    value={currNoValue ? '—' : fmtMoney(t?.conversion_value ?? 0)} sparklineData={currNoValue ? [] : spark.convValue}   color="blue" size="small" delta={currNoValue ? { pct: null, goodDirection: 'up' } : { pct: deltaPct(t?.conversion_value,    priorTotals?.conversion_value),    goodDirection: 'up'   }} />
-        <BFScorecard title="Value / Conversion"  value={currNoValue ? '—' : fmtMoney(valuePerConv)}                    sparklineData={currNoValue ? [] : spark.valuePerConv} color="blue" size="small" delta={currNoValue ? { pct: null, goodDirection: 'up' } : { pct: deltaPct(valuePerConv,           priorValuePerConv),                goodDirection: 'up'   }} />
-        <BFScorecard title="ROAS"                value={currNoValue ? '—' : fmtCtr(roas)}                              sparklineData={currNoValue ? [] : spark.roas}         color="blue" size="small" delta={currNoValue ? { pct: null, goodDirection: 'up' } : { pct: deltaPct(roas,                   priorRoas),                        goodDirection: 'up'   }} />
       </div>
       <div style={{
         textAlign: 'center', fontSize: typography.fontSize.xs,
@@ -491,22 +460,16 @@ export default function GoogleAdsPage() {
       </div>
 
       {/* Top Performers — client-side pick with per-metric noise floors so a
-          1-impression row can't take the top spot. Six highlights: three
-          campaign-grain (CTR / CPA / ROAS) plus one each from ad-groups,
+          1-impression row can't take the top spot. Five highlights: two
+          campaign-grain (CTR / CPA) plus one each from ad-groups,
           keywords, and search-terms — spreading across entities surfaces
           insights the campaign-grain view alone misses. */}
       {(entityCampaigns.length > 0 || entityAdGroups.length > 0 || entityKeywords.length > 0 || entitySearchTerms.length > 0) && (() => {
         // Campaign-grain
         const withImpr   = entityCampaigns.filter(c => c.impressions >= 500);
         const withConv   = entityCampaigns.filter(c => Number(c.conversions ?? 0) >= 3);
-        const withValue  = entityCampaigns.filter(c => Number(c.conversion_value ?? 0) >= 100);
         const bestCtr    = withImpr .slice().sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
         const bestCpa    = withConv .slice().sort((a, b) => (a.cost_per_conversion ?? Infinity) - (b.cost_per_conversion ?? Infinity))[0];
-        const bestRoas   = withValue.slice().sort((a, b) => {
-          const ra = a.spend ? (Number(a.conversion_value ?? 0) / a.spend) * 100 : 0;
-          const rb = b.spend ? (Number(b.conversion_value ?? 0) / b.spend) * 100 : 0;
-          return rb - ra;
-        })[0];
         // Ad-group-grain
         const agClicks   = entityAdGroups.filter(a => a.clicks >= 100);
         const bestAgRate = agClicks.slice().sort((a, b) => (b.conversion_rate ?? 0) - (a.conversion_rate ?? 0))[0];
@@ -518,10 +481,15 @@ export default function GoogleAdsPage() {
         const stConv     = entitySearchTerms.filter(s => Number(s.conversions ?? 0) >= 3);
         const topStConv  = stConv.slice().sort((a, b) => Number(b.conversions ?? 0) - Number(a.conversions ?? 0))[0];
 
+        // Best ROAS highlight removed 2026-09-01 alongside the ROAS /
+        // Conversion Value / Value / Conversion scorecards: atWork's Google
+        // Ads conversion actions have no monetary value configured, so
+        // conversions_value equals conversions in BQ and any ROAS
+        // computation renders as arithmetic-of-count. Restore when
+        // conversion values are set in Google Ads Manager.
         const highlights: { label: string; value: string; row: GadsEntityRow | undefined }[] = [
           { label: 'Best CTR — Campaign (500+ impr)',     value: bestCtr    ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                     : '—', row: bestCtr },
           { label: 'Best CPA — Campaign (3+ conv)',       value: bestCpa    ? `$${(bestCpa.cost_per_conversion ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`                     : '—', row: bestCpa },
-          { label: 'Best ROAS — Campaign ($100+ value)',  value: bestRoas   ? `${(bestRoas.spend ? (Number(bestRoas.conversion_value ?? 0) / bestRoas.spend) * 100 : 0).toFixed(0)}%` : '—', row: bestRoas },
           { label: 'Best Conv. Rate — Ad Group (100+ clk)', value: bestAgRate ? `${(bestAgRate.conversion_rate ?? 0).toFixed(2)}%`                       : '—', row: bestAgRate },
           { label: 'Cheapest CPC — Keyword (500+ impr)',  value: cheapestKw ? `$${(cheapestKw.cpc ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`                                  : '—', row: cheapestKw },
           { label: 'Top Search Term (3+ conv)',           value: topStConv  ? `${fmtInt(Number(topStConv.conversions ?? 0))} conv`                    : '—', row: topStConv },
@@ -640,8 +608,7 @@ export default function GoogleAdsPage() {
               { key: 'conversions',  label: 'Conversions'       },
               { key: 'cpa',          label: 'CPA'               },
               { key: 'conv_rate',    label: 'Conv. Rate'        },
-              { key: 'conv_value',   label: 'Conversion Value'  },
-              { key: 'roas',         label: 'ROAS'              },
+              // conv_value + roas removed 2026-09-01 — see scorecard-grid comment.
             ] as { key: TrendTab; label: string }[]).map(opt => {
               const active = trendTab === opt.key;
               return (
@@ -682,10 +649,6 @@ export default function GoogleAdsPage() {
                 return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'cost_per_conversion', label: 'CPA',              color: colors.chartDark[2] }]} />;
               case 'conv_rate':
                 return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'conversion_rate',     label: 'Conv. Rate',       color: colors.chart[2] }]} />;
-              case 'conv_value':
-                return <MetricTrendsChart data={data} yUnit="currency" series={[{ key: 'conversion_value',    label: 'Conversion Value', color: colors.chart[0] }]} />;
-              case 'roas':
-                return <MetricTrendsChart data={data} yUnit="percent"  series={[{ key: 'roas',                label: 'ROAS',             color: colors.chart[1] }]} />;
               case 'spend_clicks':
               default:
                 return (
