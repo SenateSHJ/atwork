@@ -188,6 +188,19 @@ export default function GoogleAdsPage() {
   // conversions_value degenerates. Restore when values are set in
   // Google Ads Manager.
 
+  // Avg. Daily Spend — derived pacing signal for the 10th tile. Denominator
+  // is calendar days in the selected window (inclusive), matching how
+  // "average daily" typically reads on a media report. Current + prior
+  // windows are the same length by construction (see fetchPriorCb), so
+  // the delta collapses to the spend delta but the absolute number is
+  // a different, useful quantity.
+  const daysInWindow = useMemo(() => {
+    const ms = new Date(endDate).getTime() - new Date(startDate).getTime();
+    return Math.max(1, Math.round(ms / 86_400_000) + 1);
+  }, [startDate, endDate]);
+  const avgDailySpend      = (t?.spend_aud            ?? 0) / daysInWindow;
+  const priorAvgDailySpend = (priorTotals?.spend_aud  ?? 0) / daysInWindow;
+
   const spark = useMemo(() => ({
     spend:       dailyRows.map(d => d.spend_aud            ?? 0),
     impressions: dailyRows.map(d => d.impressions          ?? 0),
@@ -422,22 +435,26 @@ export default function GoogleAdsPage() {
         </div>
       )}
 
-      {/* ── Scorecards (9 tiles, 3-per-row grid, deltas on every tile) ──
+      {/* ── Scorecards (10 tiles, 5-per-row grid, deltas on every tile) ──
            Previously 12 tiles in a 6x2 grid. Conversion Value, Value /
            Conversion, and ROAS removed 2026-09-01: atWork's Google Ads
            conversion actions have no monetary value configured, so BQ's
            conversions_value column reads exactly equal to conversions
-           and all three metrics degenerate to arithmetic-of-count. If
-           conversion values ever land in the account, restore the three
-           tiles + revert to 6x2. */}
+           and all three metrics degenerate to arithmetic-of-count. Grid
+           re-tuned to 5x2 with Avg. Daily Spend as the tenth tile — a
+           purely-derived pacing signal (spend / days-with-spend) that
+           does not need any new column in bronze/silver. If conversion
+           values ever land in the account, restore the three tiles +
+           revert to 6x2. */}
       <div className="scorecard-grid" style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(3, ${card.gridCardMin})`,
+        gridTemplateColumns: `repeat(5, ${card.gridCardMin})`,
         gap: spacing.sm,
         justifyContent: 'center',
         marginBottom: spacing.xs,
       }}>
         <BFScorecard title="Spend"               value={fmtMoney(t?.spend_aud           ?? 0)}    sparklineData={spark.spend}       color="blue" size="small" delta={{ pct: deltaPct(t?.spend_aud,           priorTotals?.spend_aud),           goodDirection: null   }} />
+        <BFScorecard title="Avg. Daily Spend"    value={fmtMoney(avgDailySpend                )}   sparklineData={spark.spend}       color="blue" size="small" delta={{ pct: deltaPct(avgDailySpend,          priorAvgDailySpend),               goodDirection: null   }} />
         <BFScorecard title="Impressions"         value={fmtInt(t?.impressions           ?? 0)}    sparklineData={spark.impressions} color="blue" size="small" delta={{ pct: deltaPct(t?.impressions,         priorTotals?.impressions),         goodDirection: 'up'   }} />
         <BFScorecard title="Clicks"              value={fmtInt(t?.clicks                ?? 0)}    sparklineData={spark.clicks}      color="blue" size="small" delta={{ pct: deltaPct(t?.clicks,              priorTotals?.clicks),              goodDirection: 'up'   }} />
         <BFScorecard title="CTR"                 value={fmtCtr(t?.ctr                   ?? null)} sparklineData={spark.ctr}         color="blue" size="small" delta={{ pct: deltaPct(t?.ctr,                 priorTotals?.ctr),                 goodDirection: 'up'   }} />
