@@ -120,6 +120,12 @@ import {
   recommendCompetitorReview,
   recommendLandingPageFromWeakestQS,
   hedgeRecencyAndIntervention,
+  // Paid section recommendation (2026-09-01). Fires when spend fell
+  // >=5% and CPA rose >=10% on the aggregate; independent of G1 and
+  // of below-campaign attribution. Sits alongside
+  // recommendInvestigateMaterialRateMove as the small-account paid
+  // recommendation family.
+  recommendInvestigateEfficiencyLoss,
 } from '@prism/executive-summaries';
 
 const ATWORK_RULES = [
@@ -183,6 +189,8 @@ const ATWORK_RULES = [
   recommendCompetitorReview,
   recommendLandingPageFromWeakestQS,
   hedgeRecencyAndIntervention,
+  // Paid recommendation family (2026-09-01).
+  recommendInvestigateEfficiencyLoss,
 ];
 
 export type SectionStateKind = 'normal' | 'partial' | 'suppressed';
