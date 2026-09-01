@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { format, parseISO } from 'date-fns';
-import { colors, typography, spacing, shadow } from '@/tokens';
+import { colors, typography, spacing, shadow, controls, borderRadius, borderWidth, cellPadding, chart, card, grey, preview } from '@/tokens';
 import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
@@ -17,7 +17,7 @@ const MetricTrendsChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>
+      <div style={{ height: chart.loadingHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: grey.placeholder, fontSize: typography.fontSize.sm }}>
         Loading chart…
       </div>
     ),
@@ -56,7 +56,7 @@ function daysAgo(n: number) {
 }
 
 const fmtCtr   = (v: number | null) => v != null ? `${v.toFixed(2)}%` : '0.00%';
-const fmtMoney = (v: number | null) => v != null ? `$${v.toFixed(2)}` : '$0.00';
+const fmtMoney = (v: number | null) => v != null ? `$${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
 const fmtInt   = (v: number)        => Math.round(v).toLocaleString();
 const fmtDate  = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
@@ -88,15 +88,15 @@ function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean;
         const cfg: Record<string, { bg: string; fg: string }> = {
           ACTIVE:    { bg: colors.brand.secondaryFaint, fg: colors.brand.secondaryDark },
           PAUSED:    { bg: colors.brand.primaryFaint,   fg: colors.brand.primaryDark },
-          COMPLETED: { bg: '#f3f4f6',                    fg: '#6b7280' },
-          DRAFT:     { bg: '#f3f4f6',                    fg: '#6b7280' },
+          COMPLETED: { bg: grey.bgMedium,                    fg: grey.fgMedium },
+          DRAFT:     { bg: grey.bgMedium,                    fg: grey.fgMedium },
         };
-        const style = cfg[s] ?? { bg: '#f3f4f6', fg: '#6b7280' };
+        const style = cfg[s] ?? { bg: grey.bgMedium, fg: grey.fgMedium };
         if (!s) return '—';
         return (
           <span style={{
             display: 'inline-block',
-            padding: '2px 8px',
+            padding: cellPadding.chip,
             fontSize: typography.fontSize.xs,
             fontWeight: typography.fontWeight.semibold,
             backgroundColor: style.bg,
@@ -116,10 +116,10 @@ function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean;
         return (
           <span style={{
             display: 'inline-block',
-            padding: '2px 8px',
+            padding: cellPadding.chip,
             fontSize: typography.fontSize.xs,
             fontWeight: typography.fontWeight.medium,
-            backgroundColor: '#f3f4f6',
+            backgroundColor: grey.bgMedium,
             color: colors.text.primary,
             textTransform: 'capitalize',
           }}>{f}</span>
@@ -144,10 +144,10 @@ function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean;
             src={src}
             loading="lazy"
             style={{
-              width: 220,
-              height: 200,
-              border: '1px solid #e5e7eb',
-              borderRadius: 0,
+              width: preview.iframeW,
+              height: preview.size,
+              border: `${borderWidth.thin} solid ${grey.border}`,
+              borderRadius: borderRadius.none,
               display: 'block',
             }}
             title="LinkedIn post preview"
@@ -181,10 +181,10 @@ function entityColumns(nameLabel: string, opts?: { withParentCampaign?: boolean;
     { key: 'impressions',         label: 'Impressions',  numeric: true, render: r => Number(r.impressions || 0).toLocaleString() },
     { key: 'clicks',              label: 'Clicks',       numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
     { key: 'ctr',                 label: 'CTR',          numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-    { key: 'cpc',                 label: 'CPC',          numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-    { key: 'cpm',                 label: 'CPM',          numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
+    { key: 'cpc',                 label: 'CPC',          numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+    { key: 'cpm',                 label: 'CPM',          numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'leads',               label: 'Leads',        numeric: true, render: r => Number(r.leads || 0).toLocaleString() },
-    { key: 'cost_per_lead',       label: 'CPL',          numeric: true, render: r => r.cost_per_lead == null ? '—' : `$${Number(r.cost_per_lead).toFixed(2)}` },
+    { key: 'cost_per_lead',       label: 'CPL',          numeric: true, render: r => r.cost_per_lead == null ? '—' : `$${Number(r.cost_per_lead).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'landing_page_clicks', label: 'LP Clicks',    numeric: true, render: r => Number(r.landing_page_clicks || 0).toLocaleString() },
     { key: 'video_views',         label: 'Video Views',  numeric: true, render: r => Number(r.video_views || 0).toLocaleString() },
     { key: 'engagements',         label: 'Engagements',  numeric: true, render: r => Number(r.engagements || 0).toLocaleString() },
@@ -200,8 +200,8 @@ const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'clicks',        label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
   { key: 'reach',         label: 'Reach',       numeric: true, render: r => Number(r.reach       || 0).toLocaleString() },
   { key: 'ctr',           label: 'CTR',         numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-  { key: 'cpc',           label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-  { key: 'cpm',           label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
+  { key: 'cpc',           label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+  { key: 'cpm',           label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'engagements',   label: 'Engagements', numeric: true, render: r => Number(r.engagements || 0).toLocaleString() },
   { key: 'video_views',   label: 'Video Views', numeric: true, render: r => Number(r.video_views || 0).toLocaleString() },
   { key: 'leads',         label: 'Leads',       numeric: true, render: r => Number(r.leads || 0).toLocaleString() },
@@ -289,7 +289,7 @@ export default function LinkedinPage() {
     if (!sentinelEl || belowFoldRequested) return;
     const io = new IntersectionObserver(
       (entries) => { if (entries.some(e => e.isIntersecting)) { setBelowFoldRequested(true); io.disconnect(); } },
-      { rootMargin: '400px' },
+      { rootMargin: chart.scrollRootMargin },
     );
     io.observe(sentinelEl);
     return () => io.disconnect();
@@ -431,12 +431,12 @@ export default function LinkedinPage() {
           onMouseEnter={e => { if (!refreshing) e.currentTarget.style.backgroundColor = colors.brand.primaryDark; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.ui.tealAlt; }}
           style={{
-            height: '36.5px',
+            height: controls.selectHeight,
             backgroundColor: colors.ui.tealAlt,
             color: colors.text.inverse,
             border: 'none',
-            borderRadius: 0,
-            padding: '0 16px',
+            borderRadius: borderRadius.none,
+            padding: cellPadding.pillLg,
             fontSize: typography.fontSize.sm,
             fontWeight: typography.fontWeight.medium,
             cursor: refreshing ? 'wait' : 'pointer',
@@ -453,7 +453,7 @@ export default function LinkedinPage() {
         className="scorecard-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(6, 160px)',
+          gridTemplateColumns: `repeat(6, ${card.gridCardMin})`,
           gap: spacing.sm,
           justifyContent: 'center',
           marginBottom: spacing.lg,
@@ -500,7 +500,7 @@ export default function LinkedinPage() {
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
             {highlights.map(h => (
-              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
+              <div key={h.label} style={{ flex: `1 1 ${card.flexBasis}`, minWidth: 0, border: `${borderWidth.medium} solid ${colors.ui.teal}`, borderRadius: borderRadius.none, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
                 <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                   {h.label}
                 </div>
@@ -549,15 +549,15 @@ export default function LinkedinPage() {
                   key={opt.key}
                   onClick={() => setTrendTab(opt.key)}
                   style={{
-                    padding: '6px 12px',
+                    padding: cellPadding.button,
                     fontSize: typography.fontSize.sm,
                     fontWeight: typography.fontWeight.semibold,
                     fontFamily: typography.fontFamily.sans,
                     cursor: 'pointer',
-                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
                     backgroundColor: active ? colors.brand.primary : '#fff',
                     color: active ? colors.brand.primaryText : colors.text.primary,
-                    borderRadius: 0,
+                    borderRadius: borderRadius.none,
                   }}
                 >
                   {opt.label}
@@ -606,11 +606,11 @@ export default function LinkedinPage() {
         </ChartContainer>
 
         {/* 2-panel bar chart row: Video Watch Funnel + Day of Week side by
-            side (each at flex-basis calc(50%-12px) to match the 24px gap).
+            side (see card.flexHalf; matches the spacing.lg column gap).
             Falls to 1-column when width can't hold both. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
           {t && t.video_starts > 0 && (
-            <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+            <div style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
               <ChartContainer title="Video Watch Funnel">
                 <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                   {(() => {
@@ -646,7 +646,7 @@ export default function LinkedinPage() {
             </div>
           )}
           {dowData.some(d => d.spend > 0) && (
-            <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+            <div style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
               <ChartContainer title="Performance by Day of Week">
                 <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                   {(() => {
@@ -661,7 +661,7 @@ export default function LinkedinPage() {
                           <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
                             <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
                           </div>
-                          <div style={{ width: 200, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                          <div style={{ width: preview.size, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
                             <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
                             <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
                             <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
@@ -692,15 +692,15 @@ export default function LinkedinPage() {
                   key={opt.key}
                   onClick={() => setPerfTab(opt.key)}
                   style={{
-                    padding: '6px 12px',
+                    padding: cellPadding.button,
                     fontSize: typography.fontSize.sm,
                     fontWeight: typography.fontWeight.semibold,
                     fontFamily: typography.fontFamily.sans,
                     cursor: 'pointer',
-                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
                     backgroundColor: active ? colors.brand.primary : '#fff',
                     color: active ? colors.brand.primaryText : colors.text.primary,
-                    borderRadius: 0,
+                    borderRadius: borderRadius.none,
                   }}
                 >
                   {opt.label}

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { format, parseISO } from 'date-fns';
 import { FallbackBanner, readBannerDismissed, persistBannerDismissed } from '@/components/FallbackBanner';
-import { colors, typography, spacing, shadow } from '@/tokens';
+import { colors, typography, spacing, shadow, controls, borderRadius, borderWidth, cellPadding, chart, card, grey, preview } from '@/tokens';
 import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
@@ -20,7 +20,7 @@ const MetricTrendsChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>
+      <div style={{ height: chart.loadingHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: grey.placeholder, fontSize: typography.fontSize.sm }}>
         Loading chart…
       </div>
     ),
@@ -49,7 +49,7 @@ function daysAgo(n: number) {
 }
 
 const fmtCtr   = (v: number | null) => v != null ? `${v.toFixed(2)}%` : '0.00%';
-const fmtMoney = (v: number | null) => v != null ? `$${v.toFixed(2)}` : '$0.00';
+const fmtMoney = (v: number | null) => v != null ? `$${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
 const fmtInt   = (v: number)        => Math.round(v).toLocaleString();
 const fmtFreq  = (v: number | null) => v != null ? v.toFixed(2) : '—';
 
@@ -88,7 +88,7 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
         const kind = String(r.preview_kind ?? 'IMAGE').toUpperCase();
         if (!url) {
           return (
-            <div style={{ width: 200, height: 200, backgroundColor: '#f9fafb', border: `1px solid ${colors.border.default}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, color: colors.text.secondary, fontSize: typography.fontSize.xs, textAlign: 'center' }}>
+            <div style={{ width: preview.size, height: preview.size, backgroundColor: grey.bgLight, border: `${borderWidth.thin} solid ${colors.border.default}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, color: colors.text.secondary, fontSize: typography.fontSize.xs, textAlign: 'center' }}>
               <div style={{ fontSize: 22 }}>◇</div>
               <div>No preview<br />available</div>
               <div style={{ opacity: 0.6 }}>{kind}</div>
@@ -96,7 +96,7 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
           );
         }
         return (
-          <div style={{ position: 'relative', width: 200, height: 200, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}>
+          <div style={{ position: 'relative', width: preview.size, height: preview.size, backgroundColor: grey.bgLight, border: `${borderWidth.thin} solid ${grey.border}` }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
@@ -107,7 +107,7 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
             {kind === 'VIDEO' && (
               <div style={{
                 position: 'absolute', bottom: 6, left: 6,
-                padding: '2px 6px',
+                padding: cellPadding.tight,
                 fontSize: typography.fontSize.xs,
                 fontWeight: typography.fontWeight.semibold,
                 color: '#fff',
@@ -137,7 +137,7 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
             {title && <div style={{ fontWeight: typography.fontWeight.semibold, color: colors.text.primary }}>{title}</div>}
             {bodyShort && <div style={{ color: colors.text.secondary, fontSize: typography.fontSize.xs, lineHeight: 1.4 }}>{bodyShort}</div>}
             {cta && (
-              <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold, backgroundColor: colors.brand.primaryFaint, color: colors.brand.primaryDark, width: 'fit-content' }}>
+              <span style={{ display: 'inline-block', padding: cellPadding.chip, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold, backgroundColor: colors.brand.primaryFaint, color: colors.brand.primaryDark, width: 'fit-content' }}>
                 {cta.replace(/_/g, ' ')}
               </span>
             )}
@@ -158,10 +158,10 @@ function entityColumns(nameLabel: string, opts?: { withMediaType?: boolean; with
     { key: 'clicks',              label: 'Clicks',              numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
     { key: 'reach',               label: 'Reach',               numeric: true, render: r => Number(r.reach       || 0).toLocaleString() },
     { key: 'ctr',                 label: 'CTR',                 numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-    { key: 'cpc',                 label: 'CPC',                 numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-    { key: 'cpm',                 label: 'CPM',                 numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
+    { key: 'cpc',                 label: 'CPC',                 numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+    { key: 'cpm',                 label: 'CPM',                 numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'conversions',         label: 'Conversions',         numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
-    { key: 'cost_per_conversion', label: 'CPA',        numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toFixed(2)}` },
+    { key: 'cost_per_conversion', label: 'CPA',        numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'video_views',         label: 'Video Views',         numeric: true, render: r => Number(r.video_views || 0).toLocaleString() },
   );
   return cols;
@@ -196,10 +196,10 @@ const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'clicks',              label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
   { key: 'reach',               label: 'Reach',       numeric: true, render: r => Number(r.reach       || 0).toLocaleString() },
   { key: 'ctr',                 label: 'CTR',         numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-  { key: 'cpc',                 label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-  { key: 'cpm',                 label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
+  { key: 'cpc',                 label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+  { key: 'cpm',                 label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'conversions',         label: 'Conversions', numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
-  { key: 'cost_per_conversion', label: 'CPA',numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toFixed(2)}` },
+  { key: 'cost_per_conversion', label: 'CPA',numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'video_views',         label: 'Video Views', numeric: true, render: r => Number(r.video_views || 0).toLocaleString() },
 ];
 
@@ -315,7 +315,7 @@ export default function MetaPage() {
     if (!sentinelEl || belowFoldRequested) return;
     const io = new IntersectionObserver(
       (entries) => { if (entries.some(e => e.isIntersecting)) { setBelowFoldRequested(true); io.disconnect(); } },
-      { rootMargin: '400px' },
+      { rootMargin: chart.scrollRootMargin },
     );
     io.observe(sentinelEl);
     return () => io.disconnect();
@@ -504,12 +504,12 @@ export default function MetaPage() {
           onMouseEnter={e => { if (!refreshing) e.currentTarget.style.backgroundColor = colors.brand.primaryDark; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.ui.tealAlt; }}
           style={{
-            height: '36.5px',
+            height: controls.selectHeight,
             backgroundColor: colors.ui.tealAlt,
             color: colors.text.inverse,
             border: 'none',
-            borderRadius: 0,
-            padding: '0 16px',
+            borderRadius: borderRadius.none,
+            padding: cellPadding.pillLg,
             fontSize: typography.fontSize.sm,
             fontWeight: typography.fontWeight.medium,
             cursor: refreshing ? 'wait' : 'pointer',
@@ -531,7 +531,7 @@ export default function MetaPage() {
         className="scorecard-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(6, 160px)',
+          gridTemplateColumns: `repeat(6, ${card.gridCardMin})`,
           gap: spacing.sm,
           justifyContent: 'center',
           marginBottom: spacing.xs,
@@ -578,13 +578,13 @@ export default function MetaPage() {
         const bestCpc = withReach.slice().sort((a, b) => (a.cpc ?? Infinity) - (b.cpc ?? Infinity))[0];
         const highlights: { label: string; value: string; ad: EntityRow | undefined }[] = [
           { label: 'Best CTR (500+ impr)',    value: bestCtr ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                : '—', ad: bestCtr },
-          { label: 'Best CPA (3+ conv)',      value: bestCpa ? `$${(bestCpa.cost_per_conversion ?? 0).toFixed(2)}` : '—', ad: bestCpa },
-          { label: 'Cheapest CPC (500+ reach)', value: bestCpc ? `$${(bestCpc.cpc ?? 0).toFixed(2)}`               : '—', ad: bestCpc },
+          { label: 'Best CPA (3+ conv)',      value: bestCpa ? `$${(bestCpa.cost_per_conversion ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—', ad: bestCpa },
+          { label: 'Cheapest CPC (500+ reach)', value: bestCpc ? `$${(bestCpc.cpc ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`               : '—', ad: bestCpc },
         ];
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
             {highlights.map(h => (
-              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
+              <div key={h.label} style={{ flex: `1 1 ${card.flexBasis}`, minWidth: 0, border: `${borderWidth.medium} solid ${colors.ui.teal}`, borderRadius: borderRadius.none, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
                 <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                   {h.label}
                 </div>
@@ -631,15 +631,15 @@ export default function MetaPage() {
                   key={opt.key}
                   onClick={() => setTrendTab(opt.key)}
                   style={{
-                    padding: '6px 12px',
+                    padding: cellPadding.button,
                     fontSize: typography.fontSize.sm,
                     fontWeight: typography.fontWeight.semibold,
                     fontFamily: typography.fontFamily.sans,
                     cursor: 'pointer',
-                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
                     backgroundColor: active ? colors.brand.primary : '#fff',
                     color: active ? colors.brand.primaryText : colors.text.primary,
-                    borderRadius: 0,
+                    borderRadius: borderRadius.none,
                   }}
                 >
                   {opt.label}
@@ -687,9 +687,10 @@ export default function MetaPage() {
 
         {/* 2×2 bar-chart grid: Video Watch Funnel, Devices, Placements,
             Day of Week. All account-level. Half-width per panel on desktop
-            (calc(50% - 12px) matches the 24px gap), stacks below ~640px.
-            Day of Week has its own internal renderer since it shows 3 stats
-            per row instead of 2 and uses shorter weekday labels. */}
+            (see card.flexHalf; matches the spacing.lg column gap), stacks
+            on narrow viewports. Day of Week has its own internal renderer
+            since it shows 3 stats per row instead of 2 and uses shorter
+            weekday labels. */}
         {(() => {
           const funnelMax = videoWatch.funnel.reduce((m, r) => Math.max(m, r.count), 0);
           const deviceMax = devicesData.devices.reduce((m, r) => Math.max(m, r.impressions), 0);
@@ -736,7 +737,7 @@ export default function MetaPage() {
           return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
               {panels.map(panel => (
-                <div key={panel.title} style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+                <div key={panel.title} style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
                   <ChartContainer title={panel.title}>
                     <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                       {panel.rows.length === 0 || panel.rows.every(r => r.barPct === 0) ? (
@@ -786,7 +787,7 @@ export default function MetaPage() {
                 </div>
               ))}
               {dowData.some(d => d.spend > 0) && (
-                <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+                <div style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
                   <ChartContainer title="Performance by Day of Week">
                     <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                       {(() => {
@@ -801,7 +802,7 @@ export default function MetaPage() {
                               <div style={{ flex: 1, position: 'relative', height: 24, backgroundColor: colors.background.panel, minWidth: 40 }}>
                                 <div style={{ width: `${pct}%`, height: '100%', backgroundColor: colors.ui.teal, transition: 'width 240ms ease-out' }} />
                               </div>
-                              <div style={{ width: 220, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
+                              <div style={{ width: preview.iframeW, flexShrink: 0, fontSize: typography.fontSize.sm, color: colors.text.primary, display: 'flex', justifyContent: 'space-between', gap: spacing.xs, fontVariantNumeric: 'tabular-nums' }}>
                                 <span style={{ fontWeight: typography.fontWeight.semibold }}>{`$${Math.round(d.spend).toLocaleString()}`}</span>
                                 <span style={{ color: colors.text.secondary }}>{Number(d.impressions).toLocaleString()} impr</span>
                                 <span style={{ color: colors.text.secondary }}>{d.ctr == null ? '—' : `${d.ctr.toFixed(2)}%`}</span>
@@ -839,15 +840,15 @@ export default function MetaPage() {
                   key={opt.key}
                   onClick={() => setPerfTab(opt.key)}
                   style={{
-                    padding: '6px 12px',
+                    padding: cellPadding.button,
                     fontSize: typography.fontSize.sm,
                     fontWeight: typography.fontWeight.semibold,
                     fontFamily: typography.fontFamily.sans,
                     cursor: 'pointer',
-                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
                     backgroundColor: active ? colors.brand.primary : '#fff',
                     color: active ? colors.brand.primaryText : colors.text.primary,
-                    borderRadius: 0,
+                    borderRadius: borderRadius.none,
                   }}
                 >
                   {opt.label}

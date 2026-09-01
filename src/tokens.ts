@@ -175,8 +175,20 @@ export const card = {
 // ─── Muted greys for placeholder / disabled surfaces ─────────────────────────
 // Kept alongside colors.text.disabled but named separately because chart
 // placeholders and loading spinners use a lighter grey than disabled text.
+// Values mirror Tailwind neutral greys so the palette matches other atWork
+// UI that references them directly (BFScorecard, DailySummaryTable).
 export const grey = {
-  placeholder: '#9CA3AF',
+  placeholder: '#9CA3AF',   // gray-400 — chart loading text
+  bgLight:     '#F9FAFB',   // gray-50  — inactive preview backgrounds
+  bgMedium:    '#F3F4F6',   // gray-100 — neutral status pill background
+  border:      '#E5E7EB',   // gray-200 — muted borders on preview panes
+  fgMedium:    '#6B7280',   // gray-500 — muted status pill foreground
+} as const;
+
+// ─── Preview panel sizing (ad-creative thumbnails + iframe previews) ─────────
+export const preview = {
+  size:      200,
+  iframeW:   220,
 } as const;
 
 // ─── Border radius ────────────────────────────────────────────────────────────
