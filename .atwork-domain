@@ -1,0 +1,4 @@
+# atWork Supabase domain identifiers.
+# Consumed by scripts/migrate.mjs and any other tenant-scoped script.
+# Never edit to point at another tenant's ref.
+SUPABASE_PROJECT_REF=krbveactwladtwiqrmts
