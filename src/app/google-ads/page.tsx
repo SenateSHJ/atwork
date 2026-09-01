@@ -182,15 +182,39 @@ export default function GoogleAdsPage() {
 
   const t = summaryTotals;
 
+  // "No revenue tracked" detection. Google Ads defaults conversions_value
+  // to 1 per conversion when a conversion action has no monetary value
+  // configured (lead-gen accounts where conversions are events, not
+  // sales). BQ's conversions_value column then reads exactly equal to
+  // conversions, and any downstream ratio (Value per Conversion, ROAS)
+  // renders arithmetically as $1.00 or a meaningless single-digit
+  // percent — not zero-tracked, actively misleading.
+  //
+  // Detect the case by comparing the totals: when |value - count| is
+  // within a tight epsilon on a non-zero conversion base, treat as
+  // untracked and null-gate the value-based scorecards. Reader gets "—"
+  // instead of a fake $1.00 flatline. Surfaced 2026-09-01 on the atWork
+  // Google Ads account.
+  function noRevenueTracked(totals: Totals | null): boolean {
+    if (!totals) return true;
+    const cv = totals.conversion_value ?? 0;
+    const c  = totals.conversions      ?? 0;
+    return c > 0 && Math.abs(cv - c) < 0.01;
+  }
+  const currNoValue  = noRevenueTracked(t);
+  const priorNoValue = noRevenueTracked(priorTotals);
+
   // ROAS = conversion_value / spend * 100. Google Ads convention: return
-  // as percentage (300% = $3 back per $1 spent). Skip when spend is 0.
-  const roas      = t?.spend_aud             ? ((t.conversion_value ?? 0) / t.spend_aud) * 100          : null;
-  const priorRoas = priorTotals?.spend_aud   ? ((priorTotals.conversion_value ?? 0) / priorTotals.spend_aud) * 100 : null;
+  // as percentage (300% = $3 back per $1 spent). Skip when spend is 0
+  // OR when revenue isn't tracked at all.
+  const roas      = t?.spend_aud           && !currNoValue  ? ((t.conversion_value ?? 0) / t.spend_aud) * 100                       : null;
+  const priorRoas = priorTotals?.spend_aud && !priorNoValue ? ((priorTotals.conversion_value ?? 0) / priorTotals.spend_aud) * 100   : null;
 
   // Value per Conversion = conversion_value / conversions. Complements
   // CPA — CPA is cost side, this is revenue side, both per conversion.
-  const valuePerConv      = t?.conversions             ? (t.conversion_value ?? 0) / t.conversions                    : null;
-  const priorValuePerConv = priorTotals?.conversions   ? (priorTotals.conversion_value ?? 0) / priorTotals.conversions : null;
+  // Same untracked-revenue gate.
+  const valuePerConv      = t?.conversions           && !currNoValue  ? (t.conversion_value ?? 0) / t.conversions                    : null;
+  const priorValuePerConv = priorTotals?.conversions && !priorNoValue ? (priorTotals.conversion_value ?? 0) / priorTotals.conversions : null;
 
   const spark = useMemo(() => ({
     spend:       dailyRows.map(d => d.spend_aud            ?? 0),
@@ -450,9 +474,9 @@ export default function GoogleAdsPage() {
         <BFScorecard title="Conversions"         value={fmtInt(t?.conversions           ?? 0)}    sparklineData={spark.conversions} color="blue" size="small" delta={{ pct: deltaPct(t?.conversions,         priorTotals?.conversions),         goodDirection: 'up'   }} />
         <BFScorecard title="Conversion Rate"     value={fmtCtr(t?.conversion_rate       ?? null)} sparklineData={spark.convRate}    color="blue" size="small" delta={{ pct: deltaPct(t?.conversion_rate,     priorTotals?.conversion_rate),     goodDirection: 'up'   }} />
         <BFScorecard title="Cost per Conversion" value={fmtMoney(t?.cost_per_conversion ?? null)} sparklineData={spark.cpa}         color="blue" size="small" delta={{ pct: deltaPct(t?.cost_per_conversion, priorTotals?.cost_per_conversion), goodDirection: 'down' }} />
-        <BFScorecard title="Conversion Value"    value={fmtMoney(t?.conversion_value    ?? 0)}    sparklineData={spark.convValue}   color="blue" size="small" delta={{ pct: deltaPct(t?.conversion_value,    priorTotals?.conversion_value),    goodDirection: 'up'   }} />
-        <BFScorecard title="Value / Conversion"  value={fmtMoney(valuePerConv)}                    sparklineData={spark.valuePerConv} color="blue" size="small" delta={{ pct: deltaPct(valuePerConv,           priorValuePerConv),                goodDirection: 'up'   }} />
-        <BFScorecard title="ROAS"                value={fmtCtr(roas)}                              sparklineData={spark.roas}         color="blue" size="small" delta={{ pct: deltaPct(roas,                   priorRoas),                        goodDirection: 'up'   }} />
+        <BFScorecard title="Conversion Value"    value={currNoValue ? '—' : fmtMoney(t?.conversion_value ?? 0)} sparklineData={currNoValue ? [] : spark.convValue}   color="blue" size="small" delta={currNoValue ? { pct: null, goodDirection: 'up' } : { pct: deltaPct(t?.conversion_value,    priorTotals?.conversion_value),    goodDirection: 'up'   }} />
+        <BFScorecard title="Value / Conversion"  value={currNoValue ? '—' : fmtMoney(valuePerConv)}                    sparklineData={currNoValue ? [] : spark.valuePerConv} color="blue" size="small" delta={currNoValue ? { pct: null, goodDirection: 'up' } : { pct: deltaPct(valuePerConv,           priorValuePerConv),                goodDirection: 'up'   }} />
+        <BFScorecard title="ROAS"                value={currNoValue ? '—' : fmtCtr(roas)}                              sparklineData={currNoValue ? [] : spark.roas}         color="blue" size="small" delta={currNoValue ? { pct: null, goodDirection: 'up' } : { pct: deltaPct(roas,                   priorRoas),                        goodDirection: 'up'   }} />
       </div>
       <div style={{
         textAlign: 'center', fontSize: typography.fontSize.xs,
