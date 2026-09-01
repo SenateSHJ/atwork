@@ -154,6 +154,29 @@ export const gridMin = {
 export const cellPadding = {
   compact: '4px 6px',
   tight:   '2px 6px',
+  button:  '6px 12px',
+  chip:    '2px 8px',
+  pillLg:  '0 16px',
+} as const;
+
+// ─── Chart + card layout constants ───────────────────────────────────────────
+export const chart = {
+  loadingHeight: 320,
+  scrollRootMargin: '400px',
+} as const;
+
+export const card = {
+  minWidth: 300,
+  flexBasis: '260px',
+  flexHalf: 'calc(50% - 12px)',
+  gridCardMin: '160px',
+} as const;
+
+// ─── Muted greys for placeholder / disabled surfaces ─────────────────────────
+// Kept alongside colors.text.disabled but named separately because chart
+// placeholders and loading spinners use a lighter grey than disabled text.
+export const grey = {
+  placeholder: '#9CA3AF',
 } as const;
 
 // ─── Border radius ────────────────────────────────────────────────────────────

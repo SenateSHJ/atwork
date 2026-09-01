@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { FallbackBanner, readBannerDismissed, persistBannerDismissed } from '@/components/FallbackBanner';
-import { colors, typography, spacing, shadow } from '@/tokens';
+import { colors, typography, spacing, shadow, controls, borderRadius, borderWidth, cellPadding, chart, card, grey } from '@/tokens';
 import { BFScorecard } from '@/components/BFScorecard';
 import { ChartContainer } from '@/components/ChartContainer';
 import { DateRangePicker } from '@/components/shared/DateRangePicker';
@@ -11,7 +11,7 @@ import { SearchableMultiSelect } from '@/components/hq/SearchableMultiSelect';
 import dynamic from 'next/dynamic';
 const MetricTrendsChart = dynamic(
   () => import('@/components/hq/MetricTrendsChart').then(m => ({ default: m.MetricTrendsChart })),
-  { ssr: false, loading: () => <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 14 }}>Loading chart…</div> },
+  { ssr: false, loading: () => <div style={{ height: chart.loadingHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: grey.placeholder, fontSize: typography.fontSize.sm }}>Loading chart…</div> },
 );
 import { DailySummaryTable, type DSTColumn } from '@/components/hq/DailySummaryTable';
 import {
@@ -34,7 +34,7 @@ function daysAgo(n: number) {
 }
 
 const fmtCtr   = (v: number | null) => v != null ? `${v.toFixed(2)}%` : '0.00%';
-const fmtMoney = (v: number | null) => v != null ? `$${v.toFixed(2)}` : '$0.00';
+const fmtMoney = (v: number | null) => v != null ? `$${v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
 const fmtInt   = (v: number)        => Math.round(v).toLocaleString();
 const fmtDate  = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
@@ -65,11 +65,11 @@ function entityColumns(nameLabel: string, opts?: { withCampaign?: boolean; withA
     { key: 'clicks',              label: 'Clicks',          numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
     { key: 'conversions',         label: 'Conversions',     numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
     { key: 'ctr',                 label: 'CTR',             numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-    { key: 'cpc',                 label: 'CPC',             numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-    { key: 'cpm',                 label: 'CPM',             numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
-    { key: 'cost_per_conversion', label: 'CPA',             numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toFixed(2)}` },
+    { key: 'cpc',                 label: 'CPC',             numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+    { key: 'cpm',                 label: 'CPM',             numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+    { key: 'cost_per_conversion', label: 'CPA',             numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'conversion_rate',     label: 'Conv. Rate',      numeric: true, render: r => r.conversion_rate == null ? '—' : `${Number(r.conversion_rate).toFixed(2)}%` },
-    { key: 'conversion_value',    label: 'Conv. Value',     numeric: true, render: r => `$${Number(r.conversion_value || 0).toFixed(2)}` },
+    { key: 'conversion_value',    label: 'Conv. Value',     numeric: true, render: r => `$${Number(r.conversion_value || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   );
   return cols;
 }
@@ -82,11 +82,11 @@ const DAILY_COLUMNS: DSTColumn[] = [
   { key: 'clicks',              label: 'Clicks',      numeric: true, render: r => Number(r.clicks      || 0).toLocaleString() },
   { key: 'conversions',         label: 'Conversions', numeric: true, render: r => Number(r.conversions || 0).toLocaleString() },
   { key: 'ctr',                 label: 'CTR',         numeric: true, render: r => r.ctr == null ? '—' : `${Number(r.ctr).toFixed(2)}%` },
-  { key: 'cpc',                 label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toFixed(2)}` },
-  { key: 'cpm',                 label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toFixed(2)}` },
-  { key: 'cost_per_conversion', label: 'CPA',         numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toFixed(2)}` },
+  { key: 'cpc',                 label: 'CPC',         numeric: true, render: r => r.cpc == null ? '—' : `$${Number(r.cpc).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+  { key: 'cpm',                 label: 'CPM',         numeric: true, render: r => r.cpm == null ? '—' : `$${Number(r.cpm).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+  { key: 'cost_per_conversion', label: 'CPA',         numeric: true, render: r => r.cost_per_conversion == null ? '—' : `$${Number(r.cost_per_conversion).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
   { key: 'conversion_rate',     label: 'Conv. Rate',  numeric: true, render: r => r.conversion_rate == null ? '—' : `${Number(r.conversion_rate).toFixed(2)}%` },
-  { key: 'conversion_value',    label: 'Conv. Value', numeric: true, render: r => `$${Number(r.conversion_value || 0).toFixed(2)}` },
+  { key: 'conversion_value',    label: 'Conv. Value', numeric: true, render: r => `$${Number(r.conversion_value || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ export default function GoogleAdsPage() {
     if (!sentinelEl || belowFoldRequested) return;
     const io = new IntersectionObserver(
       entries => { if (entries.some(e => e.isIntersecting)) { setBelowFoldRequested(true); io.disconnect(); } },
-      { rootMargin: '400px' },
+      { rootMargin: chart.scrollRootMargin },
     );
     io.observe(sentinelEl);
     return () => io.disconnect();
@@ -321,7 +321,7 @@ export default function GoogleAdsPage() {
     color: colors.text.secondary,
     fontSize: typography.fontSize.sm,
     backgroundColor: colors.background.panel,
-    borderTop: `1px solid ${colors.border.default}`,
+    borderTop: `${borderWidth.thin} solid ${colors.border.default}`,
   };
   const searchPausedNote = (
     <div style={noteBox}>
@@ -397,10 +397,10 @@ export default function GoogleAdsPage() {
           onMouseEnter={e => { if (!refreshing) e.currentTarget.style.backgroundColor = colors.brand.primaryDark; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = colors.ui.tealAlt; }}
           style={{
-            height: '36.5px',
+            height: controls.selectHeight,
             backgroundColor: colors.ui.tealAlt,
             color: colors.text.inverse,
-            border: 'none', borderRadius: 0, padding: '0 16px',
+            border: 'none', borderRadius: borderRadius.none, padding: cellPadding.pillLg,
             fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.medium,
             cursor: refreshing ? 'wait' : 'pointer',
             opacity: refreshing ? 0.6 : 1,
@@ -414,12 +414,12 @@ export default function GoogleAdsPage() {
       {/* ── Inactive-account banner ──────────────────────────────── */}
       {(t && t.spend_aud === 0 && t.impressions === 0 && t.clicks === 0) && (
         <div style={{
-          border: `1px solid ${colors.brand.secondary}`,
+          border: `${borderWidth.thin} solid ${colors.brand.secondary}`,
           backgroundColor: colors.brand.secondaryFaint,
           color: colors.text.primary,
           padding: `${spacing.md} ${spacing.lg}`,
           marginBottom: spacing.lg,
-          borderRadius: 0,
+          borderRadius: borderRadius.none,
           fontSize: typography.fontSize.sm,
           lineHeight: 1.5,
           boxShadow: shadow.md,
@@ -436,7 +436,7 @@ export default function GoogleAdsPage() {
       {/* ── Scorecards (12 tiles, 6x2 grid, deltas on every tile) ── */}
       <div className="scorecard-grid" style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(6, 160px)',
+        gridTemplateColumns: `repeat(6, ${card.gridCardMin})`,
         gap: spacing.sm,
         justifyContent: 'center',
         marginBottom: spacing.xs,
@@ -496,16 +496,16 @@ export default function GoogleAdsPage() {
 
         const highlights: { label: string; value: string; row: GadsEntityRow | undefined }[] = [
           { label: 'Best CTR — Campaign (500+ impr)',     value: bestCtr    ? `${(bestCtr.ctr ?? 0).toFixed(2)}%`                                     : '—', row: bestCtr },
-          { label: 'Best CPA — Campaign (3+ conv)',       value: bestCpa    ? `$${(bestCpa.cost_per_conversion ?? 0).toFixed(2)}`                     : '—', row: bestCpa },
+          { label: 'Best CPA — Campaign (3+ conv)',       value: bestCpa    ? `$${(bestCpa.cost_per_conversion ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`                     : '—', row: bestCpa },
           { label: 'Best ROAS — Campaign ($100+ value)',  value: bestRoas   ? `${(bestRoas.spend ? (Number(bestRoas.conversion_value ?? 0) / bestRoas.spend) * 100 : 0).toFixed(0)}%` : '—', row: bestRoas },
           { label: 'Best Conv. Rate — Ad Group (100+ clk)', value: bestAgRate ? `${(bestAgRate.conversion_rate ?? 0).toFixed(2)}%`                       : '—', row: bestAgRate },
-          { label: 'Cheapest CPC — Keyword (500+ impr)',  value: cheapestKw ? `$${(cheapestKw.cpc ?? 0).toFixed(2)}`                                  : '—', row: cheapestKw },
+          { label: 'Cheapest CPC — Keyword (500+ impr)',  value: cheapestKw ? `$${(cheapestKw.cpc ?? 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`                                  : '—', row: cheapestKw },
           { label: 'Top Search Term (3+ conv)',           value: topStConv  ? `${fmtInt(Number(topStConv.conversions ?? 0))} conv`                    : '—', row: topStConv },
         ];
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
             {highlights.map(h => (
-              <div key={h.label} style={{ flex: '1 1 260px', minWidth: 0, border: `2px solid ${colors.ui.teal}`, borderRadius: 0, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
+              <div key={h.label} style={{ flex: `1 1 ${card.flexBasis}`, minWidth: 0, border: `${borderWidth.medium} solid ${colors.ui.teal}`, borderRadius: borderRadius.none, padding: spacing.md, backgroundColor: colors.background.card, boxShadow: shadow.md }}>
                 <div style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
                   {h.label}
                 </div>
@@ -537,7 +537,7 @@ export default function GoogleAdsPage() {
             Campaign-Type, and Device bar charts would need a connector
             expansion — not possible with the current sync. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.lg }}>
-          <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+          <div style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
             <ChartContainer title="Performance by Day of Week">
               <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 {dowData.every(d => d.spend === 0) ? (
@@ -568,7 +568,7 @@ export default function GoogleAdsPage() {
               </div>
             </ChartContainer>
           </div>
-          <div style={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
+          <div style={{ flex: `1 1 ${card.flexHalf}`, minWidth: card.minWidth }}>
             <ChartContainer title="Match Type Distribution">
               <div style={{ padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
                 {matchTypeData.length === 0 ? (
@@ -625,15 +625,15 @@ export default function GoogleAdsPage() {
                   key={opt.key}
                   onClick={() => setTrendTab(opt.key)}
                   style={{
-                    padding: '6px 12px',
+                    padding: cellPadding.button,
                     fontSize: typography.fontSize.sm,
                     fontWeight: typography.fontWeight.semibold,
                     fontFamily: typography.fontFamily.sans,
                     cursor: 'pointer',
-                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
                     backgroundColor: active ? colors.brand.primary : '#fff',
                     color: active ? colors.brand.primaryText : colors.text.primary,
-                    borderRadius: 0,
+                    borderRadius: borderRadius.none,
                   }}
                 >
                   {opt.label}
@@ -703,15 +703,15 @@ export default function GoogleAdsPage() {
                   key={opt.key}
                   onClick={() => setPerfTab(opt.key)}
                   style={{
-                    padding: '6px 12px',
+                    padding: cellPadding.button,
                     fontSize: typography.fontSize.sm,
                     fontWeight: typography.fontWeight.semibold,
                     fontFamily: typography.fontFamily.sans,
                     cursor: 'pointer',
-                    border: `1px solid ${active ? colors.brand.primary : colors.border.default}`,
+                    border: `${borderWidth.thin} solid ${active ? colors.brand.primary : colors.border.default}`,
                     backgroundColor: active ? colors.brand.primary : '#fff',
                     color: active ? colors.brand.primaryText : colors.text.primary,
-                    borderRadius: 0,
+                    borderRadius: borderRadius.none,
                   }}
                 >
                   {opt.label}
