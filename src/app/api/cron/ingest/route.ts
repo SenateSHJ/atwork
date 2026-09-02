@@ -8,6 +8,7 @@ import { runMeta } from '@/lib/ingest/meta'
 import { runGads } from '@/lib/ingest/gads'
 import { runGa4 } from '@/lib/ingest/ga4'
 import { runLinkedin } from '@/lib/ingest/linkedin'
+import { runSemrush } from '@/lib/ingest/semrush'
 
 export const runtime = 'nodejs'
 export const maxDuration = 800
@@ -74,14 +75,15 @@ export async function GET(req: Request) {
   const gads = await runSource('gads', runGads)
   const ga4 = await runSource('ga4', runGa4)
   const linkedin = await runSource('linkedin', runLinkedin)
+  const semrush = await runSource('semrush', runSemrush)
 
-  const anyFailure = !meta.ok || !gads.ok || !ga4.ok || !linkedin.ok
+  const anyFailure = !meta.ok || !gads.ok || !ga4.ok || !linkedin.ok || !semrush.ok
   const summary = {
     ok: !anyFailure,
     startedAt,
     finishedAt: new Date().toISOString(),
     durationMs: Date.now() - t0,
-    sources: { meta, gads, ga4, linkedin },
+    sources: { meta, gads, ga4, linkedin, semrush },
   }
 
   // Return 200 even on partial failure so Vercel Cron doesn't retry

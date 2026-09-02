@@ -191,6 +191,24 @@ export const preview = {
   iframeW:   220,
 } as const;
 
+// ─── Layout chrome (sidebar, mobile breakpoint) ──────────────────────────────
+export const layout = {
+  sidebarWidth:       '280px',
+  mobileBreakpointPx: 900,
+  topbarHeight:       56,
+  logoHeight:         32,
+  iconButtonPad:      8,
+  drawerWidth:        'min(320px, 85vw)',
+} as const;
+
+// z-index layers for fixed chrome elements (top bar, backdrop, drawer).
+// Kept in one place so future modals can slot in without stacking conflicts.
+export const chrome = {
+  zTopbar:   40,
+  zBackdrop: 45,
+  zDrawer:   50,
+} as const;
+
 // ─── Border radius ────────────────────────────────────────────────────────────
 
 // Client preference: square corners across the app. Pill radius kept for

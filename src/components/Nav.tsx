@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { colors, typography, spacing } from '../tokens';
+import { colors, typography, spacing, layout, borderWidth, shadow, chrome } from '../tokens';
 
-const SIDEBAR_WIDTH = '280px';
-const MOBILE_BREAKPOINT = 900;
+const SIDEBAR_WIDTH = layout.sidebarWidth;
+const MOBILE_BREAKPOINT = layout.mobileBreakpointPx;
 
 type Tier = 'client' | 'internal';
 
@@ -15,6 +15,7 @@ const CLIENT_NAV = [
   { label: 'Google Ads',      to: '/google-ads'          },
   { label: 'LinkedIn Ads',    to: '/linkedin'            },
   { label: 'GA4',             to: '/ga4'                 },
+  { label: 'SEO (SEMrush)',   to: '/semrush'             },
   { label: 'Monthly Reports', to: '/monthly-reports'     },
   { label: 'Settings',        to: '/internal/settings'   },
 ];
@@ -97,7 +98,7 @@ export function Nav() {
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: colors.background.panel,
-          borderRight: `1px solid ${colors.border.default}`,
+          borderRight: `${borderWidth.thin} solid ${colors.border.default}`,
           overflowY: 'auto',
         }}
       >
@@ -119,14 +120,14 @@ export function Nav() {
           top: 0,
           left: 0,
           right: 0,
-          height: 56,
-          zIndex: 40,
+          height: layout.topbarHeight,
+          zIndex: chrome.zTopbar,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: `0 ${spacing.md}`,
           backgroundColor: colors.background.card,
-          borderBottom: `1px solid ${colors.border.default}`,
+          borderBottom: `${borderWidth.thin} solid ${colors.border.default}`,
         }}
       >
         <Link href={TIER_ENTRY[currentTier]} style={{ display: 'flex', alignItems: 'center' }}>
@@ -134,7 +135,7 @@ export function Nav() {
           <img
             src="/atwork-logo.png"
             alt="atWork"
-            style={{ height: 32, width: 'auto', display: 'block' }}
+            style={{ height: layout.logoHeight, width: 'auto', display: 'block' }}
           />
         </Link>
         <button
@@ -145,7 +146,7 @@ export function Nav() {
           style={{
             background: 'transparent',
             border: 'none',
-            padding: 8,
+            padding: layout.iconButtonPad,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -164,7 +165,7 @@ export function Nav() {
             position: 'fixed',
             inset: 0,
             backgroundColor: colors.background.overlay,
-            zIndex: 45,
+            zIndex: chrome.zBackdrop,
           }}
         />
       )}
@@ -177,24 +178,24 @@ export function Nav() {
           top: 0,
           right: 0,
           bottom: 0,
-          width: 'min(320px, 85vw)',
-          zIndex: 50,
+          width: layout.drawerWidth,
+          zIndex: chrome.zDrawer,
           backgroundColor: colors.background.card,
-          borderLeft: `1px solid ${colors.border.default}`,
+          borderLeft: `${borderWidth.thin} solid ${colors.border.default}`,
           transform: drawerOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 200ms ease-out',
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
-          boxShadow: drawerOpen ? '-8px 0 24px rgba(0,0,0,0.15)' : 'none',
+          boxShadow: drawerOpen ? shadow.xl : 'none',
         }}
       >
-        <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: `0 ${spacing.sm}`, borderBottom: `1px solid ${colors.border.default}` }}>
+        <div style={{ height: layout.topbarHeight, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: `0 ${spacing.sm}`, borderBottom: `${borderWidth.thin} solid ${colors.border.default}` }}>
           <button
             type="button"
             onClick={() => setDrawerOpen(false)}
             aria-label="Close menu"
-            style={{ background: 'transparent', border: 'none', padding: 8, cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', padding: layout.iconButtonPad, cursor: 'pointer' }}
           >
             <HamburgerIcon open={true} />
           </button>
@@ -210,11 +211,11 @@ export function Nav() {
 
 function TierSwitcher({ currentTier }: { currentTier: Tier }) {
   return (
-    <div style={{ padding: spacing.md, borderBottom: `1px solid ${colors.border.default}` }}>
+    <div style={{ padding: spacing.md, borderBottom: `${borderWidth.thin} solid ${colors.border.default}` }}>
       <div
         style={{
           display: 'flex',
-          border: `1px solid ${colors.border.default}`,
+          border: `${borderWidth.thin} solid ${colors.border.default}`,
           borderRadius: 0,
           overflow: 'hidden',
         }}
@@ -283,12 +284,12 @@ function NavLinks({ nav, pathname }: { nav: { label: string; to: string }[]; pat
               padding: `${spacing.sm} ${spacing.lg}`,
               fontSize: typography.fontSize.sm,
               fontWeight: isActive ? typography.fontWeight.semibold : typography.fontWeight.normal,
-              color: isActive ? colors.brand.primary : '#000000',
+              color: isActive ? colors.brand.primary : colors.text.primary,
               backgroundColor: isActive ? colors.brand.primaryFaint : 'transparent',
               textDecoration: 'none',
               borderRight: isActive
-                ? `3px solid ${colors.brand.primary}`
-                : '3px solid transparent',
+                ? `${borderWidth.thick} solid ${colors.brand.primary}`
+                : `${borderWidth.thick} solid transparent`,
             }}
           >
             {item.label}
