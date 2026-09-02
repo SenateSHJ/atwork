@@ -1,31 +1,64 @@
 'use server';
 
-// Server actions for the Monthly Reports page. Fetches the current + prior
-// NormalisedPeriod for each channel via the atWork adapters and hands them
-// to the reporting library's compose() for deterministic prose. The library
-// owns all rule logic; this file owns only the fetch orchestration and the
-// binding of the atWork ClientConfig.
+// Server actions for the Monthly Reports page.
+//
+// Meta / Google Ads / Website use PRISM's canonical silver adapters via
+// `assembleComparison` (one call per channel returns a full Comparison
+// including current + prior + 3-month history + change_events). atWork's
+// silver views were verified against PRISM's contracts at
+// contracts/silver/*.sql on 2026-09-01; every column PRISM's adapter
+// reads is present with the correct type. Bespoke shim adapters
+// (previously at src/app/monthly-reports/adapters/{meta,gads,website}.ts)
+// were deleted in the same commit that landed this file's rewrite.
+//
+// LinkedIn keeps the bespoke shim at
+// src/app/monthly-reports/adapters/linkedin.ts per the ownership rule
+// in CLAUDE.md ("atWork owns LinkedIn"). It uses the old
+// current/prior/history flow that composeSection knows how to handle.
 
-import { fetchAtWorkMetaPeriod }     from './adapters/meta';
-import { fetchAtWorkGadsPeriod }     from './adapters/gads';
-import { fetchAtWorkWebsitePeriod }  from './adapters/website';
 import { fetchAtWorkLinkedinPeriod } from './adapters/linkedin';
 import { atworkMonthLabel, priorMonth } from './adapters/config';
-import { loadConfig } from '@prism/executive-summaries';
-import type { ClientConfig } from '@prism/executive-summaries';
 import { supabaseServer } from '@/lib/supabase/server';
 import { buildHistory, computeComparisonStats } from './adapters/helpers';
+import { makeAtWorkConfig, ATWORK_META_CONVERSION_COLUMN } from '@/config/atwork';
+import { assembleComparison } from '@prism/executive-summaries';
+import type { ClientConfig, Comparison, SilverSupabaseClient } from '@prism/executive-summaries';
 
 const CLIENT_SLUG = 'atwork';
 import {
   compose,
   DERIVED_RULES,
-  type NormalisedPeriod,
-  // Every describe*/flag* rule PRISM ships. Assembled locally rather
-  // than pulled through the SPINE_RULES aggregate: rule firing is
-  // arbitrated at engine time by config_rule + the K-rule dependency
-  // gates, and passing a hand-curated subset bypasses those gates.
-  // If PRISM adds a rule, add it to ATWORK_RULES below.
+  // Every describe*/flag* rule PRISM ships that has an authored wording
+  // template AND emits signals reachable from atWork's data. Rule
+  // firing is arbitrated at engine time by config_rule + K-rule
+  // dependency gates and per-rule sample gates. Rules that would
+  // silent-skip on Meta's thin lead volume (10 leads/month) simply
+  // silent-skip; nothing bad happens.
+  //
+  // Rule additions 2026-09-01:
+  //   T1 web:   describeSourceMixShift, describeLandingPageDistribution,
+  //             describeDeviceMixShift, describeBrowserAnomaly,
+  //             describeConversionRateTrend, describeLeadEventComposition,
+  //             describeT1CombinedRecommendations,
+  //             flagPaidSocialDataOutOfScope,
+  //             flagLifecycleTaggingSuspicion.
+  //   T2/T8 Meta: describeAudienceSaturation, describeCreativeFatigue,
+  //               describeLaunchCohortGroupSummary,
+  //               describeRankedPerformersByChangeOnPrior,
+  //               describeRankedPerformersByEfficiency,
+  //               describeSpendConcentrationVsRank.
+  //   T3 Google Ads: describeMatchTypeShift, describeCampaignAttribution,
+  //                  describeCampaignImprovementConflatesCull,
+  //                  describeDeviceParity, describeDevicePaidRateRegression,
+  //                  describeImpressionShare,
+  //                  describeQualityScoreComponentMovement,
+  //                  describeSearchTermConcentration,
+  //                  describeTrendWithStepChange, describeTrendWithLatestSurge,
+  //                  recommendBudgetFromImpressionShare,
+  //                  recommendCompetitorReview,
+  //                  recommendLandingPageFromWeakestQS,
+  //                  hedgeRecencyAndIntervention.
+  //   Small-account rec: recommendInvestigateMaterialRateMove (derived).
   describeAnchor,
   describeOutcomeDefinition,
   describeCampaignGoalCompletions,
@@ -54,6 +87,44 @@ import {
   describeSpendPulse,
   flagAttributionWindowChangedBetweenPeriods,
   flagAttributionWindowSuspectedDrift,
+  // T1 web
+  describeSourceMixShift,
+  describeLandingPageDistribution,
+  describeDeviceMixShift,
+  describeBrowserAnomaly,
+  describeConversionRateTrend,
+  describeLeadEventComposition,
+  describeT1CombinedRecommendations,
+  flagPaidSocialDataOutOfScope,
+  flagLifecycleTaggingSuspicion,
+  // T2/T8 Meta
+  describeAudienceSaturation,
+  describeCreativeFatigue,
+  describeLaunchCohortGroupSummary,
+  describeRankedPerformersByChangeOnPrior,
+  describeRankedPerformersByEfficiency,
+  describeSpendConcentrationVsRank,
+  // T3 Google Ads
+  describeMatchTypeShift,
+  describeCampaignAttribution,
+  describeCampaignImprovementConflatesCull,
+  describeDeviceParity,
+  describeDevicePaidRateRegression,
+  describeImpressionShare,
+  describeQualityScoreComponentMovement,
+  describeSearchTermConcentration,
+  describeTrendWithStepChange,
+  describeTrendWithLatestSurge,
+  recommendBudgetFromImpressionShare,
+  recommendCompetitorReview,
+  recommendLandingPageFromWeakestQS,
+  hedgeRecencyAndIntervention,
+  // Paid section recommendation (2026-09-01). Fires when spend fell
+  // >=5% and CPA rose >=10% on the aggregate; independent of G1 and
+  // of below-campaign attribution. Sits alongside
+  // recommendInvestigateMaterialRateMove as the small-account paid
+  // recommendation family.
+  recommendInvestigateEfficiencyLoss,
 } from '@prism/executive-summaries';
 
 const ATWORK_RULES = [
@@ -85,6 +156,40 @@ const ATWORK_RULES = [
   describeSpendPulse,
   flagAttributionWindowChangedBetweenPeriods,
   flagAttributionWindowSuspectedDrift,
+  // T1 web batch
+  describeSourceMixShift,
+  describeLandingPageDistribution,
+  describeDeviceMixShift,
+  describeBrowserAnomaly,
+  describeConversionRateTrend,
+  describeLeadEventComposition,
+  describeT1CombinedRecommendations,
+  flagPaidSocialDataOutOfScope,
+  flagLifecycleTaggingSuspicion,
+  // T2 + T8 Meta batch
+  describeAudienceSaturation,
+  describeCreativeFatigue,
+  describeLaunchCohortGroupSummary,
+  describeRankedPerformersByChangeOnPrior,
+  describeRankedPerformersByEfficiency,
+  describeSpendConcentrationVsRank,
+  // T3 Google Ads batch
+  describeMatchTypeShift,
+  describeCampaignAttribution,
+  describeCampaignImprovementConflatesCull,
+  describeDeviceParity,
+  describeDevicePaidRateRegression,
+  describeImpressionShare,
+  describeQualityScoreComponentMovement,
+  describeSearchTermConcentration,
+  describeTrendWithStepChange,
+  describeTrendWithLatestSurge,
+  recommendBudgetFromImpressionShare,
+  recommendCompetitorReview,
+  recommendLandingPageFromWeakestQS,
+  hedgeRecencyAndIntervention,
+  // Paid recommendation family (2026-09-01).
+  recommendInvestigateEfficiencyLoss,
 ];
 
 export type SectionStateKind = 'normal' | 'partial' | 'suppressed';
@@ -159,31 +264,41 @@ export async function getAvailableMonths(): Promise<string[]> {
   return out;
 }
 
-// Fetches all three channels current + prior in parallel, plus 4-period
-// history for Tier 3 charts and F-category rules, then composes each
-// section's prose with the spine ruleset.
+// Fetches all four channels' Comparison objects in parallel, then
+// composes each section's prose with the spine ruleset. Meta / Google
+// Ads / Website flow through PRISM's assembleComparison (canonical
+// silver adapter) since atWork's silver views match PRISM contracts.
+// LinkedIn stays on the bespoke shim adapter per the ownership rule.
+//
+// Config: makeAtWorkConfig() from src/config/atwork.ts is the source
+// of truth. Static rather than loadConfig() from reporting.*_config —
+// the seeded row set is a duplicate of what the code declares, and
+// bypassing loadConfig makes atWork's report render deterministically
+// against the checked-in config rather than whatever last happened to
+// be written to Supabase.
 export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> {
   if (!/^\d{4}-\d{2}$/.test(month)) {
     throw new Error(`fetchMonthlyReport: month must be YYYY-MM, got "${month}"`);
   }
-  const prior = priorMonth(month);
-  // loadConfig hits reporting.* and hydrates the ClientConfig at request
-  // time. No static ATWORK_CONFIG fallback here; if the seed has not run,
-  // loadConfig throws and the error surfaces as an empty section rather
-  // than a silent render against defaults.
-  const [
-    config,
-    metaCur, metaPri, metaHist,
-    gadsCur, gadsPri, gadsHist,
-    webCur,  webPri,  webHist,
-    liCur,   liPri,   liHist,
-  ] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    loadConfig({ supabase: supabaseServer() as unknown as any, clientSlug: CLIENT_SLUG }),
-    fetchAtWorkMetaPeriod(month),     fetchAtWorkMetaPeriod(prior),     buildHistory(fetchAtWorkMetaPeriod,     month),
-    fetchAtWorkGadsPeriod(month),     fetchAtWorkGadsPeriod(prior),     buildHistory(fetchAtWorkGadsPeriod,     month),
-    fetchAtWorkWebsitePeriod(month),  fetchAtWorkWebsitePeriod(prior),  buildHistory(fetchAtWorkWebsitePeriod,  month),
-    fetchAtWorkLinkedinPeriod(month), fetchAtWorkLinkedinPeriod(prior), buildHistory(fetchAtWorkLinkedinPeriod, month),
+  const prior  = priorMonth(month);
+  const config = makeAtWorkConfig();
+  const client = supabaseServer() as unknown as SilverSupabaseClient;
+
+  const [metaCmp, gadsCmp, webCmp, liCmp] = await Promise.all([
+    assembleComparison({
+      client, channelId: 'meta', currentMonth: month, config,
+      clientSlug: CLIENT_SLUG,
+      metaConversionColumn: ATWORK_META_CONVERSION_COLUMN,
+    }),
+    assembleComparison({
+      client, channelId: 'google-ads', currentMonth: month, config,
+      clientSlug: CLIENT_SLUG,
+    }),
+    assembleComparison({
+      client, channelId: 'web', currentMonth: month, config,
+      clientSlug: CLIENT_SLUG,
+    }),
+    buildLinkedInComparison(month, prior, config),
   ]);
 
   return {
@@ -191,10 +306,38 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
     monthLabel: atworkMonthLabel(month),
     prior,
     priorLabel: atworkMonthLabel(prior),
-    meta:     composeSection(metaCur, metaPri, metaHist, 'Meta Ads',   config, month, prior),
-    gads:     composeSection(gadsCur, gadsPri, gadsHist, 'Google Ads', config, month, prior),
-    website:  composeSection(webCur,  webPri,  webHist,  'Website',    config, month, prior),
-    linkedin: composeSection(liCur,   liPri,   liHist,   'LinkedIn',   config, month, prior),
+    meta:     composeSection(metaCmp, 'Meta Ads',   month, prior),
+    gads:     composeSection(gadsCmp, 'Google Ads', month, prior),
+    website:  composeSection(webCmp,  'Website',    month, prior),
+    linkedin: composeSection(liCmp,   'LinkedIn',   month, prior),
+  };
+}
+
+// LinkedIn keeps the bespoke shim adapter. Its fetch returns
+// NormalisedPeriod | null; we assemble the Comparison here from
+// current + prior + history + computed stats, mirroring what
+// assembleComparison does internally for the other channels.
+// change_events kept empty per atWork's LinkedIn shim convention
+// (change_event table not populated for LinkedIn).
+async function buildLinkedInComparison(
+  month:  string,
+  prior:  string,
+  config: ClientConfig,
+): Promise<Comparison | null> {
+  const [current, priorPeriod, history] = await Promise.all([
+    fetchAtWorkLinkedinPeriod(month),
+    fetchAtWorkLinkedinPeriod(prior),
+    buildHistory(fetchAtWorkLinkedinPeriod, month),
+  ]);
+  if (!current) return null;
+  const stats = computeComparisonStats(
+    current.entities,
+    current.metrics.spend,
+    current.metrics.conversions,
+  );
+  return {
+    current, prior: priorPeriod, yoy: null, baseline: null,
+    history, stats, config, change_events: [],
   };
 }
 
@@ -215,34 +358,25 @@ function emptySection(basis: string): SectionReport {
 }
 
 function composeSection(
-  current: NormalisedPeriod | null,
-  prior:   NormalisedPeriod | null,
-  history: NormalisedPeriod[],
-  label:   string,
-  config:  ClientConfig,
-  month:   string,
+  comparison:   Comparison | null,
+  label:        string,
+  month:        string,
   priorMonthId: string,
 ): SectionReport {
-  if (!current) {
+  if (!comparison || !comparison.current) {
     // Empty-data section still names the period it covers. PRISM's
-    // basisSubtitle formatter runs from a Comparison and can't fire when
-    // current is null, so we reproduce the "Reporting on X compared to Y."
-    // shape here from the month labels. Anything else (verdict, chips,
-    // paragraphs, evidence) stays empty because there is nothing to say
-    // beyond "no data for this period".
+    // basisSubtitle formatter runs from a Comparison and can't fire
+    // when current is null, so we reproduce the "Reporting on X
+    // compared to Y." shape from the month labels. Anything else
+    // stays empty because there is nothing to say beyond "no data".
     const basis = `Reporting on ${atworkMonthLabel(month)} compared to ${atworkMonthLabel(priorMonthId)}.`;
     return {
       ...emptySection(basis),
       paragraphs: [{ category: 'A', slot: 'anchor', text: `No ${label} data available for the selected month.`, emittingRules: [] }],
     };
   }
-  const stats = computeComparisonStats(
-    current.entities,
-    current.metrics.spend,
-    current.metrics.conversions,
-  );
   const output = compose({
-    comparison: { current, prior, yoy: null, baseline: null, history, stats, config, change_events: [] },
+    comparison,
     rules:      ATWORK_RULES,
     derived:    DERIVED_RULES,
     section:    label,

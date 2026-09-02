@@ -18,3 +18,4 @@ tsconfig.tsbuildinfo
 
 # direnv per-project env (may carry secrets — never commit)
 .envrc
+.prism/

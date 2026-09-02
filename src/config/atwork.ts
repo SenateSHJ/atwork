@@ -173,11 +173,52 @@ export const ATWORK_NARRATOR_SLOT_ORDER = [
 
 // ─── Full client config ────────────────────────────────────────────────
 
+// ─── LinkedIn ──────────────────────────────────────────────────────────
+//
+// atWork's LinkedIn account is traffic-model: the campaign goal is
+// video completions and clicks, and no downstream Insight Tag
+// conversion tracking is wired. Metrics.conversions is always 0 by
+// design; the outcome that measures the account is clicks (or video
+// completions in Metrics.custom.video_completions).
+//
+// Marking channel_family='paid' and outcome_model='traffic' routes
+// the sample-size gate to key on impressions (not conversions), the
+// anchor to name clicks + CPC (not conversions + CPA), and every
+// rate rule to skip the conversions gate.
+//
+// The rest of the atWork LinkedIn shim (adapter, entities,
+// breakdowns=none) is unchanged; this only tells PRISM how to
+// interpret the channel it already receives.
+
+const CHANNEL_LINKEDIN: ChannelConfig = {
+  channel_id:                   'linkedin',
+  channel_display:              'LinkedIn',
+  currency:                     'AUD',
+  locale:                       'en-AU',
+  conversion_definition:        'Campaign goal is video completions to the end of the ad. No downstream off-LinkedIn action is tracked; Insight Tag installation would be required for that.',
+  display_order:                4,
+  enabled:                      true,
+  channel_family:               'paid',
+  outcome_model:                'traffic',
+  default_demand_type:          'unknown',
+  default_creative_source:      'authored',
+  reports_refunds:              false,
+  reports_benchmarks:           false,
+  reports_input_health:         false,
+  reports_new_customer_data:    false,
+  new_customer_goal_configured: null,
+  platform_absent_dimensions:   [],
+  attribution_windows:          [],
+  entity_demand_type_overrides:     [],
+  entity_creative_source_overrides: [],
+  declared_events:                  [],
+};
+
 export function makeAtWorkConfig(): ClientConfig {
   const defaults = makeDefaultClientConfig('atwork');
   return {
     ...defaults,
-    channels: [CHANNEL_GOOGLE_ADS, CHANNEL_META, CHANNEL_WEB],
+    channels: [CHANNEL_GOOGLE_ADS, CHANNEL_META, CHANNEL_WEB, CHANNEL_LINKEDIN],
     rules:    [],
     wording:  [...(AUTHORED_WORDING as WordingOverride[])],
     default_outcome_model: 'lead_generation',
