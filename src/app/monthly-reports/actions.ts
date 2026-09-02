@@ -28,7 +28,6 @@ const CLIENT_SLUG = 'atwork';
 import {
   compose,
   DERIVED_RULES,
-  type NormalisedPeriod,
   // Every describe*/flag* rule PRISM ships that has an authored wording
   // template AND emits signals reachable from atWork's data. Rule
   // firing is arbitrated at engine time by config_rule + K-rule
