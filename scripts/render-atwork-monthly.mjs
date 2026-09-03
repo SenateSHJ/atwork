@@ -14,7 +14,7 @@ const month = process.argv[2] || '2026-07'
 try {
   const r = await fetchMonthlyReport(month)
   console.log(`=== atWork monthly report — ${r.monthLabel} (compared to ${r.priorLabel}) ===\n`)
-  for (const ch of ['meta', 'gads', 'website', 'linkedin']) {
+  for (const ch of ['meta', 'gads', 'website', 'linkedin', 'semrush']) {
     const s = r[ch]
     console.log(`\n=== ${ch.toUpperCase()} ===`)
     console.log(`  state: ${s.state.kind}, chips: ${s.chips.length}, paragraphs: ${s.paragraphs.length}, recommendations: ${s.recommendations.length}`)

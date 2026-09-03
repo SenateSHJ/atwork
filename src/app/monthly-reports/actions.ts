@@ -20,7 +20,7 @@ import { fetchAtWorkLinkedinPeriod } from './adapters/linkedin';
 import { atworkMonthLabel, priorMonth } from './adapters/config';
 import { supabaseServer } from '@/lib/supabase/server';
 import { buildHistory, computeComparisonStats } from './adapters/helpers';
-import { makeAtWorkConfig, ATWORK_META_CONVERSION_COLUMN } from '@/config/atwork';
+import { makeAtWorkConfig, ATWORK_META_CONVERSION_COLUMN, ATWORK_SEMRUSH_DOMAIN, ATWORK_SEMRUSH_DB } from '@/config/atwork';
 import { assembleComparison } from '@prism/executive-summaries';
 import type { ClientConfig, Comparison, SilverSupabaseClient } from '@prism/executive-summaries';
 
@@ -75,6 +75,8 @@ import {
   describeAnchorDirectionalCoherence,
   describeAnchorWeb,
   describeAnchorDeltasWeb,
+  describeAnchorSeo,
+  describeAnchorDeltasSeo,
   describePagesPerSession,
   describeSpendDecomposition,
   describeSeasonalNormalcy,
@@ -144,6 +146,8 @@ const ATWORK_RULES = [
   describeAnchorDirectionalCoherence,
   describeAnchorWeb,
   describeAnchorDeltasWeb,
+  describeAnchorSeo,
+  describeAnchorDeltasSeo,
   describePagesPerSession,
   describeSpendDecomposition,
   describeSeasonalNormalcy,
@@ -240,6 +244,7 @@ export interface MonthlyReport {
   gads:      SectionReport;
   website:   SectionReport;
   linkedin:  SectionReport;
+  semrush:   SectionReport;
 }
 
 export async function getDefaultMonth(): Promise<string> {
@@ -284,7 +289,7 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
   const config = makeAtWorkConfig();
   const client = supabaseServer() as unknown as SilverSupabaseClient;
 
-  const [metaCmp, gadsCmp, webCmp, liCmp] = await Promise.all([
+  const [metaCmp, gadsCmp, webCmp, liCmp, semrushCmp] = await Promise.all([
     assembleComparison({
       client, channelId: 'meta', currentMonth: month, config,
       clientSlug: CLIENT_SLUG,
@@ -299,6 +304,16 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
       clientSlug: CLIENT_SLUG,
     }),
     buildLinkedInComparison(month, prior, config),
+    // SEMrush flows through the same PRISM silver adapter as the other
+    // canonical channels. semrushDomain + semrushDb are required for the
+    // 'semrush' channel; sourced from config/atwork.ts so a domain swap
+    // (e.g. if the SEO site moves to a different URL) is one edit.
+    assembleComparison({
+      client, channelId: 'semrush', currentMonth: month, config,
+      clientSlug: CLIENT_SLUG,
+      semrushDomain: ATWORK_SEMRUSH_DOMAIN,
+      semrushDb:     ATWORK_SEMRUSH_DB,
+    }),
   ]);
 
   return {
@@ -306,10 +321,11 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
     monthLabel: atworkMonthLabel(month),
     prior,
     priorLabel: atworkMonthLabel(prior),
-    meta:     composeSection(metaCmp, 'Meta Ads',   month, prior),
-    gads:     composeSection(gadsCmp, 'Google Ads', month, prior),
-    website:  composeSection(webCmp,  'Website',    month, prior),
-    linkedin: composeSection(liCmp,   'LinkedIn',   month, prior),
+    meta:     composeSection(metaCmp,    'Meta Ads',      month, prior),
+    gads:     composeSection(gadsCmp,    'Google Ads',    month, prior),
+    website:  composeSection(webCmp,     'Website',       month, prior),
+    linkedin: composeSection(liCmp,      'LinkedIn',      month, prior),
+    semrush:  composeSection(semrushCmp, 'SEO (SEMrush)', month, prior),
   };
 }
 

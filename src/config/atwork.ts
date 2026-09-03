@@ -214,11 +214,52 @@ const CHANNEL_LINKEDIN: ChannelConfig = {
   declared_events:                  [],
 };
 
+// ─── SEMrush (SEO) ─────────────────────────────────────────────────────
+//
+// SEO channel_family — the outcome is organic-search authority and
+// keyword coverage, not spend-driven conversions. Metrics.spend +
+// impressions + clicks + conversions are all null; the SEO signal
+// lives on Metrics.custom.{rank, organic_keywords, organic_traffic,
+// top3_positions, top10_positions, keyword_hhi, total_backlinks,
+// referring_domains, trust_score}. Anchor + delta rules read those
+// directly.
+//
+// channel_id is 'semrush' — the adapter appends `:<domain>` to
+// channel.id on the emitted period so the anchor rule's precondition
+// (channel_id starts with 'semrush') matches. The domain itself is
+// supplied to assembleComparison via semrushDomain (see actions.ts).
+const CHANNEL_SEMRUSH: ChannelConfig = {
+  channel_id:                   'semrush',
+  channel_display:              'SEO (SEMrush)',
+  currency:                     'AUD',
+  locale:                       'en-AU',
+  conversion_definition:        'Organic keywords + estimated traffic are SEMrush figures based on crawled SERP data and modelled click-through curves. Treat traffic as directional, not analytics-grade.',
+  display_order:                5,
+  enabled:                      true,
+  channel_family:               'seo',
+  outcome_model:                'organic_visibility',
+  default_demand_type:          'unknown',
+  default_creative_source:      'unknown',
+  reports_refunds:              false,
+  reports_benchmarks:           false,
+  reports_input_health:         false,
+  reports_new_customer_data:    false,
+  new_customer_goal_configured: null,
+  platform_absent_dimensions:   [],
+  attribution_windows:          [],
+  entity_demand_type_overrides:     [],
+  entity_creative_source_overrides: [],
+  declared_events:                  [],
+};
+
+export const ATWORK_SEMRUSH_DOMAIN = 'atwork.com.au';
+export const ATWORK_SEMRUSH_DB     = 'au';
+
 export function makeAtWorkConfig(): ClientConfig {
   const defaults = makeDefaultClientConfig('atwork');
   return {
     ...defaults,
-    channels: [CHANNEL_GOOGLE_ADS, CHANNEL_META, CHANNEL_WEB, CHANNEL_LINKEDIN],
+    channels: [CHANNEL_GOOGLE_ADS, CHANNEL_META, CHANNEL_WEB, CHANNEL_LINKEDIN, CHANNEL_SEMRUSH],
     rules:    [],
     wording:  [...(AUTHORED_WORDING as WordingOverride[])],
     default_outcome_model: 'lead_generation',
