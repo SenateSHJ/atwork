@@ -398,6 +398,20 @@ function composeSection(
     section:    label,
   });
   const sr = output.section_report;
+
+  // Fallback for sections that produced zero paragraphs — happens when
+  // every rule's precondition failed (e.g. SEMrush before a snapshot
+  // lands for the selected month, or a channel with a full data
+  // outage). Without this the section renders as a bare title with an
+  // empty body. Inject a single anchor placeholder so the reader sees
+  // "why nothing's here" rather than a mystery blank card.
+  if (sr.paragraphs.length === 0) {
+    const basis = `Reporting on ${atworkMonthLabel(month)} compared to ${atworkMonthLabel(priorMonthId)}.`;
+    return {
+      ...emptySection(basis),
+      paragraphs: [{ category: 'A', slot: 'anchor', text: `No ${label} data available for ${atworkMonthLabel(month)}.`, emittingRules: [] }],
+    };
+  }
   return {
     basisSubtitle: sr.basis_subtitle,
     verdict:       sr.verdict,
