@@ -81,7 +81,7 @@ export default function SemrushPage() {
         color: colors.text.primary,
         marginBottom: spacing.xs,
       }}>
-        SEO Intelligence — atwork.com.au
+        SEO Intelligence — atworkaustralia.com.au
       </h1>
       <p style={{ textAlign: 'center', color: colors.text.secondary, fontSize: typography.fontSize.sm, marginBottom: spacing.lg }}>
         Powered by SEMrush. Deltas compare the latest snapshot in the range against the snapshot from the equivalent prior period.

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Bronze ingest: SEMrush (HTTP → Supabase).
-// Nightly snapshot of atwork.com.au on the AU database. Three endpoints:
+// Nightly snapshot of atworkaustralia.com.au on the AU database. Three endpoints:
 //   domain_ranks       -> bronze.semrush_domain_snapshot
 //   domain_organic     -> bronze.semrush_organic_keywords
 //   backlinks_overview -> bronze.semrush_backlinks_overview
@@ -9,7 +9,7 @@
 
 import { makeSupabase } from './supabase'
 
-const DOMAIN = 'atwork.com.au'
+const DOMAIN = 'atworkaustralia.com.au'
 const DB = 'au'
 const TOP_KEYWORDS_LIMIT = 500
 

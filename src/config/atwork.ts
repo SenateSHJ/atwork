@@ -252,8 +252,20 @@ const CHANNEL_SEMRUSH: ChannelConfig = {
   declared_events:                  [],
 };
 
-export const ATWORK_SEMRUSH_DOMAIN = 'atwork.com.au';
+// atworkaustralia.com.au is the marketing site atWork's SEO effort
+// actually targets. atwork.com.au (the earlier value) is a corporate
+// apex hosting subdomain products (Preceda payroll, Pirkx rewards) —
+// SEMrush's coverage of it was 22 keywords vs 11,960 for the marketing
+// site. Swapped 2026-09-04 once the client confirmed the right domain
+// and shared the priority-keyword list (see docs/handover).
+export const ATWORK_SEMRUSH_DOMAIN = 'atworkaustralia.com.au';
 export const ATWORK_SEMRUSH_DB     = 'au';
+export const ATWORK_SEMRUSH_COMPETITORS: readonly string[] = [
+  'wiseemployment.com.au',
+  'apm.net.au',
+  'workskil.com.au',
+  'matchworks.com.au',
+];
 
 export function makeAtWorkConfig(): ClientConfig {
   const defaults = makeDefaultClientConfig('atwork');

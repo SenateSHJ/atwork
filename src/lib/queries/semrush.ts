@@ -1,6 +1,6 @@
 import { supabaseServer } from '@/lib/supabase/server'
 
-const DOMAIN = 'atwork.com.au'
+const DOMAIN = 'atworkaustralia.com.au'
 const DB = 'au'
 
 export type SemrushOverview = {
